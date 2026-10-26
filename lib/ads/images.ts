@@ -9,7 +9,7 @@ export async function toDataUri(source: Buffer | string, maxWidth = 1080): Promi
   return `data:image/jpeg;base64,${jpeg.toString('base64')}`;
 }
 
-async function download(url: string): Promise<Buffer> {
+export async function download(url: string): Promise<Buffer> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Could not download image (${res.status}): ${url}`);
   return Buffer.from(await res.arrayBuffer());

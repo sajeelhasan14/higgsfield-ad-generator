@@ -43,3 +43,6 @@ next-env.d.ts
 
 # rendered ad previews (npm run preview:ad)
 /preview/
+
+# generated slides and AI pictures (lib/storage)
+/storage/

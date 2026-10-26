@@ -1,25 +1,25 @@
-// What we ask the AI to draw. Every prompt says "no text": names and prices are drawn by our templates,
-// because image models misspell words and invent numbers.
+// What we ask the AI to do with the product's real Shopify photo. Everything product-specific comes from
+// the product itself (title, type, description), so a gate gets a gate's setting and a planter a planter's.
+// Names and prices are drawn by our template, never by the AI: image models misspell words and invent numbers.
+import type { Product } from '@/lib/products/types';
+import { BRAND } from './brand';
+import { excerpt } from './text';
 
-const NO_TEXT = 'no text, no letters, no numbers, no logos, no watermark, no people';
-
-/** Slide 1's background: the flooring in a premium setting, with a calm dark lower half for the headline. */
-export function heroPrompt(productType: string, look: string): string {
+export function heroPrompt(product: Product): string {
+  const description = excerpt(product.description, 500);
   return [
-    `Premium home gym interior with ${productType.toLowerCase()} covering the whole floor: ${look}.`,
-    'A loaded black barbell rests on the floor in the middle distance, squat rack softly out of focus behind.',
-    'Moody low-key lighting, cool blue rim light, cinematic editorial photography, 35mm lens, shallow depth of field.',
-    'The lower third of the image is dark, even floor with no objects, leaving clean space.',
-    NO_TEXT,
-  ].join(' ');
+    `Create an advertising photograph for ${BRAND.name}, ${BRAND.about}.`,
+    `The product in the reference photo is: ${product.title}${product.productType ? ` (${product.productType})` : ''}.`,
+    description && `Product description: ${description}`,
+    'Keep the product exactly as it appears in the reference photo: same shape, proportions, colour, material, finish and every detail. Do not add, remove or redesign any part of it.',
+    "Place it in a fresh, realistic setting where a customer would really use this product, chosen to suit its description and different from the reference photo's background.",
+    'Natural daylight, premium editorial lifestyle photography, the product sharp, centred and clearly the hero of the image.',
+    'No people, no text, no letters, no numbers, no logos, no watermark.',
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
-/** A variant slide's photo: a close-up of that exact tile, so the colour and texture are what changes. */
-export function variantPrompt(productType: string, look: string): string {
-  return [
-    `Close-up product photograph of ${productType.toLowerCase()} tiles: ${look}.`,
-    'Shot at a low 30-degree angle across the surface, interlocking edges visible, rich realistic rubber texture with fine granules.',
-    'Dark studio background, soft directional light, high detail commercial product photography.',
-    NO_TEXT,
-  ].join(' ');
-}
+/** Things the model should avoid, sent separately from the prompt. */
+export const HERO_NEGATIVE_PROMPT =
+  'changed product shape, different colour or finish, extra or missing parts, distorted proportions, text, letters, logo, watermark, people';

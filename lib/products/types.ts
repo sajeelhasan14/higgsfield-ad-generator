@@ -1,7 +1,7 @@
 // The app's own shape for products. Shopify's data is converted into these types as soon as it
 // arrives (lib/shopify/products.ts), so the rest of the app never depends on Shopify's format.
 
-export type ProductStatus = 'ACTIVE' | 'DRAFT' | 'ARCHIVED';
+export type ProductStatus = 'ACTIVE' | 'DRAFT' | 'ARCHIVED' | 'UNLISTED';
 
 export interface VariantOption {
   name: string; // e.g. "Thickness"

@@ -43,27 +43,36 @@ async function upsertVariant(client: PoolClient, v: Variant) {
   );
 }
 
+// json_agg folds each product's variants into one array, so this is one query instead of one per product.
+// ::text on prices keeps "45.00" exact instead of turning it into a JavaScript number.
+// {where} is replaced only with the fixed clauses below, never with user input.
+const PRODUCTS_WITH_VARIANTS_SQL = `
+  SELECT p.id, p.title, p.handle, p.description, p.vendor,
+         p.product_type AS "productType", p.status, p.image_url AS "imageUrl",
+         p.shopify_updated_at AS "shopifyUpdatedAt",
+         COALESCE(
+           json_agg(json_build_object(
+             'id', v.id, 'productId', v.product_id, 'title', v.title, 'sku', v.sku,
+             'price', v.price::text, 'compareAtPrice', v.compare_at_price::text, 'currency', v.currency,
+             'options', v.options, 'imageUrl', v.image_url, 'position', v.position
+           ) ORDER BY v.position) FILTER (WHERE v.id IS NOT NULL),
+           '[]'
+         ) AS variants
+  FROM products p
+  LEFT JOIN variants v ON v.product_id = p.id
+  {where}
+  GROUP BY p.id
+  ORDER BY p.title`;
+
 /** Every product with its variants (in Shopify's order), alphabetically by title. */
 export async function listProductsWithVariants(): Promise<ProductWithVariants[]> {
-  // json_agg folds each product's variants into one array, so this is one query instead of one per product.
-  // ::text on prices keeps "45.00" exact instead of turning it into a JavaScript number.
-  return query<ProductWithVariants>(
-    `SELECT p.id, p.title, p.handle, p.description, p.vendor,
-            p.product_type AS "productType", p.status, p.image_url AS "imageUrl",
-            p.shopify_updated_at AS "shopifyUpdatedAt",
-            COALESCE(
-              json_agg(json_build_object(
-                'id', v.id, 'productId', v.product_id, 'title', v.title, 'sku', v.sku,
-                'price', v.price::text, 'compareAtPrice', v.compare_at_price::text, 'currency', v.currency,
-                'options', v.options, 'imageUrl', v.image_url, 'position', v.position
-              ) ORDER BY v.position) FILTER (WHERE v.id IS NOT NULL),
-              '[]'
-            ) AS variants
-     FROM products p
-     LEFT JOIN variants v ON v.product_id = p.id
-     GROUP BY p.id
-     ORDER BY p.title`,
-  );
+  return query<ProductWithVariants>(PRODUCTS_WITH_VARIANTS_SQL.replace('{where}', ''));
+}
+
+/** One product with its variants, or null if it no longer exists (e.g. removed from Shopify). */
+export async function getProductWithVariants(id: string): Promise<ProductWithVariants | null> {
+  const [product] = await query<ProductWithVariants>(PRODUCTS_WITH_VARIANTS_SQL.replace('{where}', 'WHERE p.id = $1'), [id]);
+  return product ?? null;
 }
 
 /** When the catalog was last synced, or null if it never was. */

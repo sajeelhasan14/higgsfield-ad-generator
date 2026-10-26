@@ -19,6 +19,8 @@ export async function approveAd(adId: string): Promise<Date> {
     const at = await nextFreeSlot(client, POSTING_TIMEZONE);
     if (!at) throw new Error('No free posting slot in the next 60 days. Add more posting times.');
 
+    // Posts cancelled by an earlier "unschedule" were never posted; clear them so the ad can be booked again.
+    await client.query(`DELETE FROM posts WHERE ad_id = $1 AND status = 'cancelled'`, [adId]);
     // The same moment on every platform: one slot = one ad, on Instagram and Facebook together.
     for (const platform of PLATFORMS) await insertPost(client, adId, platform, at);
     await client.query(`UPDATE ads SET status = 'approved', approved_at = now() WHERE id = $1`, [adId]);

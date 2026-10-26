@@ -9,7 +9,7 @@
     "lint": "eslint",
     "migrate": "node --env-file=.env.local scripts/migrate.mjs",
     "worker": "tsx --env-file=.env.local worker/index.ts",
-    "preview:ad": "tsx scripts/preview-ad.tsx",
+    "preview:ad": "tsx --env-file=.env.local scripts/preview-ad.tsx",
     "try:higgsfield": "tsx --env-file=.env.local scripts/try-higgsfield.tsx"
   },
   "dependencies": {

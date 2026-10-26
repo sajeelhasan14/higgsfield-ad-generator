@@ -93,3 +93,39 @@ export async function failStuckPosts(olderThanMinutes = 10): Promise<number> {
   );
   return rows.length;
 }
+
+export interface ScheduledAd {
+  adId: string;
+  productTitle: string | null;
+  firstSlide: string | null; // storage key of slide 1, for the thumbnail
+  scheduledAt: Date;
+  posts: { platform: string; status: string; lastError: string | null; publishedAt: string | null }[]; // inside JSON, dates arrive as strings
+}
+
+// One row per ad with all its platform posts folded in. {filter} is replaced only with the fixed clauses below.
+const SCHEDULE_SQL = `
+  SELECT a.id AS "adId", p.title AS "productTitle",
+         (SELECT image_url FROM ad_images WHERE ad_id = a.id AND position = 1) AS "firstSlide",
+         min(s.scheduled_at) AS "scheduledAt",
+         json_agg(json_build_object('platform', s.platform, 'status', s.status, 'lastError', s.last_error,
+                                    'publishedAt', s.published_at) ORDER BY s.platform) AS posts
+  FROM posts s
+  JOIN ads a ON a.id = s.ad_id
+  LEFT JOIN products p ON p.id = a.product_id
+  {filter}
+  GROUP BY a.id, p.title`;
+
+/** Ads waiting to be posted, soonest first. */
+export async function listUpcoming(): Promise<ScheduledAd[]> {
+  return query<ScheduledAd>(
+    `${SCHEDULE_SQL.replace('{filter}', "WHERE s.status IN ('scheduled', 'publishing')")} ORDER BY "scheduledAt"`,
+  );
+}
+
+/** The most recent posted or failed ads, newest first. */
+export async function listHistory(limit = 20): Promise<ScheduledAd[]> {
+  return query<ScheduledAd>(
+    `${SCHEDULE_SQL.replace('{filter}', "WHERE s.status IN ('published', 'failed')")} ORDER BY "scheduledAt" DESC LIMIT $1`,
+    [limit],
+  );
+}

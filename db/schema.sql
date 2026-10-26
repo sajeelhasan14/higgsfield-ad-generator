@@ -47,7 +47,15 @@ CREATE TABLE IF NOT EXISTS ads (
   approved_at TIMESTAMPTZ NULL
 );
 
--- The carousel's images, in order (position 1 is the first slide).
+-- Generation: the worker submits the hero picture to Higgsfield (hero_request_id), checks it on later
+-- ticks, then renders the slides. hero_attempt goes up on each "regenerate", so each try gets its own
+-- Higgsfield idempotency key. error holds the reason when status is 'failed'.
+ALTER TABLE ads ADD COLUMN IF NOT EXISTS hero_request_id TEXT NULL;
+ALTER TABLE ads ADD COLUMN IF NOT EXISTS hero_attempt INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE ads ADD COLUMN IF NOT EXISTS error TEXT NULL;
+
+-- The carousel's images, in order (position 1 is the first slide). image_url holds the file's storage
+-- key (e.g. "ads/12/a1-slide-1.jpg"); lib/storage turns it into a URL.
 CREATE TABLE IF NOT EXISTS ad_images (
   ad_id BIGINT NOT NULL REFERENCES ads(id) ON DELETE CASCADE,
   position INTEGER NOT NULL,

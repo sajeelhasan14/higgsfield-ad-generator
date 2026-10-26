@@ -33,7 +33,7 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
  * Starts a generation and returns its request ID. The idempotency key makes a resend after a network
  * error count as the same request, so it is never paid for twice. Pass the same key to retry safely.
  */
-export async function submit(model: string, input: Record<string, unknown>, idempotencyKey = randomUUID()): Promise<string> {
+export async function submit(model: string, input: Record<string, unknown>, idempotencyKey: string = randomUUID()): Promise<string> {
   const body = await call<{ request_id: string }>(`/${model}`, {
     method: 'POST',
     headers: { 'Idempotency-Key': idempotencyKey },

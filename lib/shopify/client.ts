@@ -8,6 +8,20 @@ function storeDomain(): string {
   return domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
 }
 
+/**
+ * A short, safe error message. Shopify answers some errors with a whole HTML page that also repeats the
+ * app's client ID, so for HTML we keep only the page title (e.g. "Oauth error application_cannot_be_found").
+ */
+async function errorText(res: Response): Promise<string> {
+  const text = await res.text();
+  if (!text.trimStart().startsWith('<')) return text.slice(0, 500);
+  const title = text.match(/<title>([^<]*)<\/title>/i)?.[1]?.trim() ?? 'unknown error';
+  const hint = title.includes('application_cannot_be_found')
+    ? ' (the app is not installed on this store, or belongs to a different Shopify organization)'
+    : '';
+  return title + hint;
+}
+
 // Tokens from the client-credentials grant last about 24 hours. We keep one in memory and
 // fetch a new one shortly before it expires, instead of asking Shopify on every request.
 let cachedToken: { value: string; expiresAt: number } | null = null;
@@ -30,7 +44,7 @@ async function accessToken(): Promise<string> {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: clientSecret }),
   });
-  if (!res.ok) throw new Error(`Shopify login failed (${res.status}): ${await res.text()}`);
+  if (!res.ok) throw new Error(`Shopify login failed (${res.status}): ${await errorText(res)}`);
 
   const body = (await res.json()) as { access_token: string; expires_in?: number };
   const lifetimeSec = body.expires_in ?? 3600;
@@ -46,7 +60,7 @@ export async function shopifyGraphql<T>(queryText: string, variables: Record<str
     headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': await accessToken() },
     body: JSON.stringify({ query: queryText, variables }),
   });
-  if (!res.ok) throw new Error(`Shopify request failed (${res.status}): ${await res.text()}`);
+  if (!res.ok) throw new Error(`Shopify request failed (${res.status}): ${await errorText(res)}`);
 
   // GraphQL reports problems (bad query, missing permission, rate limit) inside a 200 response.
   const body = (await res.json()) as { data?: T; errors?: { message: string }[] };
