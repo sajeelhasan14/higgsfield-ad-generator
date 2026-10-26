@@ -4,6 +4,7 @@ import { getPool } from '@/lib/db';
 import { GENERATION_DRY_RUN, PUBLISH_DRY_RUN } from '@/lib/config';
 import { generateAds } from './tasks/generate-ads';
 import { publishDuePosts } from './tasks/publish-due-posts';
+import { syncProductsDaily } from './tasks/sync-products';
 
 const INTERVAL_MS = 10_000;
 
@@ -11,6 +12,7 @@ const INTERVAL_MS = 10_000;
 const tasks: { name: string; run: () => Promise<void> }[] = [
   { name: 'publish due posts', run: publishDuePosts },
   { name: 'generate ads', run: generateAds },
+  { name: 'daily Shopify sync', run: syncProductsDaily },
 ];
 
 let stopping = false;

@@ -1,7 +1,7 @@
 // Where generated files (slide JPEGs, AI pictures) are kept. For now: a local folder, shown in the
 // dashboard through /media/…. When the VPS-disk vs Supabase decision is made, only this file changes;
 // callers only ever see storage keys like "ads/12/a1-slide-1.jpg".
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const ROOT = path.resolve(process.env.STORAGE_DIR || 'storage');
@@ -27,6 +27,20 @@ export async function readStoredFile(key: string): Promise<Buffer> {
 /** Deletes every file under a folder key, e.g. all of one ad's slides. */
 export async function deleteFolder(prefix: string): Promise<void> {
   await rm(resolveKey(prefix), { recursive: true, force: true });
+}
+
+/** Every file key directly inside a folder key, e.g. all of one ad's images. Empty if the folder doesn't exist. */
+export async function listFolder(prefix: string): Promise<string[]> {
+  try {
+    const names = await readdir(resolveKey(prefix));
+    return names.map((name) => `${prefix}/${name}`);
+  } catch {
+    return [];
+  }
+}
+
+export async function deleteFile(key: string): Promise<void> {
+  await rm(resolveKey(key), { force: true });
 }
 
 /** The address the dashboard uses to show a stored file. */

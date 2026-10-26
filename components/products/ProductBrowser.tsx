@@ -1,17 +1,15 @@
 'use client';
 
-// The product catalogue: search, filters, sort, grid or list view, and ticking products to make ads from.
-// It runs in the browser so filtering 678 products is instant, without asking the server each time.
+// The product catalogue (Active products only): search, type filter, sort, grid or list view, and ticking
+// products to make ads from. It runs in the browser so filtering hundreds of products is instant.
 import { useActionState, useMemo, useState } from 'react';
 import { createAdsAction } from '@/app/(dashboard)/products/actions';
 import { Icon } from '@/components/shell/Icon';
-import type { ProductStatus } from '@/lib/products/types';
 
 export interface ProductCard {
   id: string;
   title: string;
   productType: string;
-  status: ProductStatus;
   imageUrl: string | null;
   variantCount: number;
   minPrice: number | null; // for sorting
@@ -28,15 +26,6 @@ const SORTS = {
 };
 type SortKey = keyof typeof SORTS;
 
-const STATUS_PILL: Record<ProductStatus, string> = {
-  ACTIVE: 'border-brand/20 bg-brand-soft text-brand',
-  UNLISTED: 'border-violet-200 bg-violet-50 text-violet-700',
-  DRAFT: 'border-amber-200 bg-amber-50 text-amber-800',
-  ARCHIVED: 'border-stone-200 bg-stone-100 text-stone-600',
-};
-
-const statusLabel = (s: ProductStatus) => s.charAt(0) + s.slice(1).toLowerCase();
-
 /** Asks Shopify's CDN for a smaller copy of the photo, so the grid loads quickly. */
 const sized = (url: string, width: number) => `${url}${url.includes('?') ? '&' : '?'}width=${width}`;
 
@@ -46,23 +35,20 @@ const canMakeAd = (p: ProductCard) => Boolean(p.imageUrl) && p.variantCount > 0;
 export function ProductBrowser({ products, dryRun }: { products: ProductCard[]; dryRun: boolean }) {
   const [query, setQuery] = useState('');
   const [type, setType] = useState('all');
-  const [status, setStatus] = useState('all');
   const [sort, setSort] = useState<SortKey>('name-asc');
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const types = useMemo(() => [...new Set(products.map((p) => p.productType).filter(Boolean))].sort(), [products]);
-  // Only the statuses this store really uses, so no filter option ever shows an empty list.
-  const statuses = useMemo(() => [...new Set(products.map((p) => p.status))].sort(), [products]);
 
   const shown = useMemo(() => {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
     return products
-      .filter((p) => (type === 'all' || p.productType === type) && (status === 'all' || p.status === status))
+      .filter((p) => type === 'all' || p.productType === type)
       .filter((p) => words.every((w) => p.title.toLowerCase().includes(w)))
       .sort(SORTS[sort].compare);
-  }, [products, query, type, status, sort]);
+  }, [products, query, type, sort]);
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -92,8 +78,7 @@ export function ProductBrowser({ products, dryRun }: { products: ProductCard[]; 
           />
         </label>
         <Select value={type} onChange={setType} options={[['all', 'All types'], ...types.map((t) => [t, t] as [string, string])]} />
-        <Select value={status} onChange={setStatus} options={[['all', 'All statuses'], ...statuses.map((s) => [s, statusLabel(s)] as [string, string])]} />
-        <Select value={sort} onChange={(v) => setSort(v as SortKey)} options={Object.entries(SORTS).map(([k, s]) => [k, s.label])} />
+                <Select value={sort} onChange={(v) => setSort(v as SortKey)} options={Object.entries(SORTS).map(([k, s]) => [k, s.label])} />
         <div className="flex overflow-hidden rounded-xl border border-line bg-white">
           {(['grid', 'list'] as const).map((v) => (
             <button
@@ -192,9 +177,6 @@ function GridCard({ product: p, selected, onToggle }: { product: ProductCard; se
         ) : (
           <div className="grid h-full place-items-center text-sm text-muted">No photo</div>
         )}
-        <span className={`absolute left-3 top-3 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${STATUS_PILL[p.status]}`}>
-          <span className="h-1.5 w-1.5 rounded-full bg-current" /> {statusLabel(p.status)}
-        </span>
         <span className="absolute right-3 top-3">
           <Checkbox checked={selected} disabled={!usable} onToggle={onToggle} label={`Select ${p.title}`} />
         </span>
@@ -223,7 +205,6 @@ function ListView({ products, selected, onToggle }: { products: ProductCard[]; s
             <th className="hidden p-3 md:table-cell">TYPE</th>
             <th className="p-3 text-right">VARIANTS</th>
             <th className="p-3 text-right">PRICE</th>
-            <th className="hidden p-3 sm:table-cell">STATUS</th>
           </tr>
         </thead>
         <tbody>
@@ -246,9 +227,6 @@ function ListView({ products, selected, onToggle }: { products: ProductCard[]; s
               <td className="hidden p-3 text-muted md:table-cell">{p.productType}</td>
               <td className="p-3 text-right tabular-nums">{p.variantCount}</td>
               <td className="whitespace-nowrap p-3 text-right font-semibold tabular-nums">{p.price}</td>
-              <td className="hidden p-3 sm:table-cell">
-                <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${STATUS_PILL[p.status]}`}>{statusLabel(p.status)}</span>
-              </td>
             </tr>
           ))}
         </tbody>

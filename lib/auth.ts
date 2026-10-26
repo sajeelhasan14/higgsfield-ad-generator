@@ -22,6 +22,22 @@ function sameText(a: string, b: string): boolean {
   return timingSafeEqual(hash(a), hash(b));
 }
 
+/**
+ * The signature in a public image link (/public-media/<signature>/<key>). Instagram downloads post images
+ * without logging in, so each shared image gets a link only our server can make; other files stay private.
+ */
+export function mediaSignature(key: string): string {
+  return sign(`public-media:${key}`).slice(0, 32);
+}
+
+export function isValidMediaSignature(key: string, signature: string): boolean {
+  try {
+    return sameText(signature, mediaSignature(key));
+  } catch {
+    return false; // SESSION_SECRET missing
+  }
+}
+
 export function checkPassword(attempt: string): boolean {
   const password = process.env.ADMIN_PASSWORD;
   if (!password) throw new Error('ADMIN_PASSWORD is not set (see .env.example)');

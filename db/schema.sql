@@ -54,6 +54,10 @@ ALTER TABLE ads ADD COLUMN IF NOT EXISTS hero_request_id TEXT NULL;
 ALTER TABLE ads ADD COLUMN IF NOT EXISTS hero_attempt INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE ads ADD COLUMN IF NOT EXISTS error TEXT NULL;
 
+-- The variant prices the post image was drawn with (e.g. "id:208.00|id:84.00"). Checked again right before
+-- posting: if Shopify's prices changed since, the post is stopped instead of advertising a wrong price.
+ALTER TABLE ads ADD COLUMN IF NOT EXISTS price_signature TEXT NULL;
+
 -- The carousel's images, in order (position 1 is the first slide). image_url holds the file's storage
 -- key (e.g. "ads/12/a1-slide-1.jpg"); lib/storage turns it into a URL.
 CREATE TABLE IF NOT EXISTS ad_images (

@@ -1,5 +1,5 @@
 // One ad on the Review page: the post image on the left, caption and buttons on the right.
-import { approveAction, deleteAction, regenerateAction } from '@/app/(dashboard)/review/actions';
+import { approveAction, deleteAction, refreshDesignAction, regenerateAction } from '@/app/(dashboard)/review/actions';
 import { ActionButton } from '@/components/ActionButton';
 import type { Ad } from '@/lib/ads/types';
 import { mediaUrl } from '@/lib/storage';
@@ -62,6 +62,12 @@ export function AdCard({ ad }: { ad: Ad }) {
             <CaptionForm adId={ad.id} caption={ad.caption} />
             <div className="mt-auto flex flex-wrap gap-2">
               <ActionButton action={approveAction} fields={id} label="Approve & schedule" tone="primary" />
+              <ActionButton
+                action={refreshDesignAction}
+                fields={id}
+                label="Refresh design"
+                confirm="Redraw this ad with the current design and Shopify prices, keeping its picture (free)? The caption is rewritten too, so any edits to it are replaced."
+              />
               <ActionButton action={regenerateAction} fields={id} label="Regenerate picture" confirm={REGENERATE_CONFIRM} />
               <ActionButton action={deleteAction} fields={id} label="Delete" tone="danger" confirm="Delete this ad?" />
             </div>

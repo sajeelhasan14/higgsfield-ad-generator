@@ -63,6 +63,11 @@ function priceRows(variants: Variant[]): PriceRow[] {
   }));
 }
 
+/** Every variant's price as one string ("id:208.00:|id:84.00:"). If Shopify's prices change, so does this. */
+export function priceSignature(product: ProductWithVariants): string {
+  return product.variants.map((v) => `${v.id}:${v.price}:${v.compareAtPrice ?? ''}`).sort().join('|');
+}
+
 /** The post as JSX. Pure: the same product and picture always give the same image. */
 export function buildPost(product: ProductWithVariants, image: string) {
   const { variants } = product;

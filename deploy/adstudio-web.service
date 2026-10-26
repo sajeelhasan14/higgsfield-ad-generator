@@ -1,0 +1,17 @@
+# The dashboard (Next.js). Copy to /etc/systemd/system/, then: systemctl enable --now adstudio-web
+[Unit]
+Description=Ad Studio website
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=publisher
+WorkingDirectory=/home/publisher/adstudio
+Environment=NODE_ENV=production
+# Only reachable through Caddy, never directly from the internet.
+ExecStart=/usr/bin/npm start -- -p 3000 -H 127.0.0.1
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

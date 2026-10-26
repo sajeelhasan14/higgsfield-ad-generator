@@ -9,6 +9,8 @@ export interface Ad {
   heroRequestId: string | null;
   heroAttempt: number;
   error: string | null;
+  /** The variant prices the image shows; compared with Shopify's current prices right before posting. */
+  priceSignature: string | null;
   createdAt: Date;
   /** Storage keys of the slides, in order. Empty until the ad is ready. */
   images: string[];

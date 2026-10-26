@@ -4,6 +4,9 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { isValidToken, SESSION_COOKIE } from '@/lib/auth';
 
 export function proxy(request: NextRequest) {
+  // Signed post images for Instagram and Facebook to download; the route checks the signature itself.
+  if (request.nextUrl.pathname.startsWith('/public-media/')) return NextResponse.next();
+
   const loggedIn = isValidToken(request.cookies.get(SESSION_COOKIE)?.value);
   const onLoginPage = request.nextUrl.pathname === '/login';
 

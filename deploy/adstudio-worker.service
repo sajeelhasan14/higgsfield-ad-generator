@@ -1,0 +1,19 @@
+# The background worker: generates ads, posts at the scheduled times, syncs Shopify daily.
+# Copy to /etc/systemd/system/, then: systemctl enable --now adstudio-worker
+[Unit]
+Description=Ad Studio worker
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=publisher
+WorkingDirectory=/home/publisher/adstudio
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npm run worker
+Restart=always
+RestartSec=5
+# On stop the worker finishes the post it is sending first (see worker/index.ts).
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

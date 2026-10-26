@@ -1,6 +1,6 @@
 // Approving an ad: mark it approved and book it into the next free posting slot on every platform.
 import { withTransaction } from '@/lib/db';
-import { PLATFORMS, POSTING_TIMEZONE } from '@/lib/config';
+import { POST_PLATFORMS, POSTING_TIMEZONE } from '@/lib/config';
 import { insertPost, nextFreeSlot } from '@/lib/posts/repository';
 
 // Any fixed number works; it just names "the scheduling lock" so all approvals wait for the same one.
@@ -22,7 +22,8 @@ export async function approveAd(adId: string): Promise<Date> {
     // Posts cancelled by an earlier "unschedule" were never posted; clear them so the ad can be booked again.
     await client.query(`DELETE FROM posts WHERE ad_id = $1 AND status = 'cancelled'`, [adId]);
     // The same moment on every platform: one slot = one ad, on Instagram and Facebook together.
-    for (const platform of PLATFORMS) await insertPost(client, adId, platform, at);
+    if (POST_PLATFORMS.length === 0) throw new Error('POST_PLATFORMS lists no platform to post to');
+    for (const platform of POST_PLATFORMS) await insertPost(client, adId, platform, at);
     await client.query(`UPDATE ads SET status = 'approved', approved_at = now() WHERE id = $1`, [adId]);
     return at;
   });

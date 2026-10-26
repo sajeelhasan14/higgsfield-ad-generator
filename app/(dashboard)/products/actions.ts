@@ -27,7 +27,8 @@ export async function createAdsAction(_prev: ActionResult, formData: FormData): 
   const productIds = formData.getAll('productId').map(String).filter(Boolean);
   if (productIds.length === 0) return { ok: false, message: 'Tick at least one product first.' };
   try {
-    await createAds(productIds);
+    const created = await createAds(productIds);
+    if (created === 0) return { ok: false, message: 'None of these products can be advertised (only Active products with a photo).' };
   } catch (err) {
     console.error('Creating ads failed:', err);
     return { ok: false, message: err instanceof Error ? err.message : 'Could not create the ads.' };

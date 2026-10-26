@@ -28,7 +28,6 @@ function toCard(p: ProductWithVariants): ProductCard {
     id: p.id,
     title: p.title,
     productType: p.productType,
-    status: p.status,
     imageUrl: p.imageUrl,
     variantCount: p.variants.length,
     minPrice: min,
@@ -39,7 +38,9 @@ function toCard(p: ProductWithVariants): ProductCard {
 
 async function Products() {
   await connection(); // always read fresh rows from the database, never a copy saved at build time
-  const [products, syncedAt] = await Promise.all([listProductsWithVariants(), lastSyncedAt()]);
+  const [all, syncedAt] = await Promise.all([listProductsWithVariants(), lastSyncedAt()]);
+  // Only Active products (live in the store) are shown and advertised; hidden, draft or archived ones are left out.
+  const products = all.filter((p) => p.status === 'ACTIVE');
   const variants = products.reduce((sum, p) => sum + p.variants.length, 0);
   const withPhoto = products.filter((p) => p.imageUrl).length;
 
@@ -55,7 +56,7 @@ async function Products() {
       />
       <StatRow
         stats={[
-          { label: 'Total products', value: products.length },
+          { label: 'Active products', value: products.length },
           { label: 'Variants', value: variants, tone: 'blue' },
           { label: 'Ready for ads', value: withPhoto, tone: 'green' },
           { label: 'No photo', value: products.length - withPhoto, tone: 'red' },

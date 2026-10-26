@@ -1,0 +1,6 @@
+# Caddy gets and renews the HTTPS certificate by itself. sslip.io names always point at the IP in them, so this
+# works without a domain; for a real subdomain, point its DNS A record at 50.6.203.155 and change the name. Meta downloads post images from this address.
+50-6-203-155.sslip.io {
+	encode gzip
+	reverse_proxy 127.0.0.1:3000
+}

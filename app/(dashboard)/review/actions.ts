@@ -5,6 +5,7 @@ import { refresh } from 'next/cache';
 import { toResult, type ActionResult } from '@/lib/action-result';
 import { requireLogin } from '@/lib/auth';
 import { approveAd } from '@/lib/ads/approve';
+import { refreshDesign } from '@/lib/ads/generate';
 import { deleteAd, requeueAd, updateCaption } from '@/lib/ads/repository';
 import { formatSlotTime } from '@/lib/format';
 import { deleteFolder } from '@/lib/storage';
@@ -30,6 +31,16 @@ export async function regenerateAction(_prev: ActionResult, formData: FormData):
     await requeueAd(adIdFrom(formData));
     refresh();
     return 'Generating a new picture…';
+  });
+}
+
+/** Redraws the image and caption from today's Shopify data, keeping the AI picture (free). */
+export async function refreshDesignAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  await requireLogin(); // before toResult, whose catch would swallow the redirect
+  return toResult(async () => {
+    await refreshDesign(adIdFrom(formData));
+    refresh();
+    return 'Design refreshed';
   });
 }
 
