@@ -43,6 +43,7 @@ The top bar of the dashboard always shows which mode is on.
 | `npm run preview:ad -- "trough planter"` | Renders a real product's post into `preview/` (free) |
 | `npm run try:higgsfield -- "x brace"` | Makes **one paid** AI picture for a product, to judge quality |
 | `npm run meta:check` | Checks the Meta settings, read-only, before posting goes live |
+| `npm run meta:check -- --try-instagram` | Also prepares an Instagram post without publishing it, to prove posting is allowed |
 | `npm run migrate` | Applies `db/schema.sql` (safe to run again) |
 
 ## Going live with Instagram and Facebook

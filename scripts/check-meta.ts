@@ -1,5 +1,6 @@
 // Checks the Meta (Instagram + Facebook) settings before switching posting on. Read-only: it posts nothing.
 // Usage: npm run meta:check
+//        npm run meta:check -- --try-instagram   also prepares an Instagram post without publishing it
 import { META_GRAPH_VERSION, POST_PLATFORMS, metaSettings, publicBaseUrl } from '@/lib/config';
 import { graph, pageAccessToken } from '@/lib/publishing/meta';
 
@@ -40,6 +41,21 @@ async function main() {
       const usage = limit.data[0];
       return `${usage?.quota_usage ?? 0} of ${usage?.config?.quota_total ?? '?'} posts used in the last 24 hours`;
     });
+    if (process.argv.includes('--try-instagram')) {
+      // Only the first of Instagram's two posting steps: the container is never published and Meta deletes it after 24 hours.
+      await check('Instagram post test (not published)', async () => {
+        const token = await pageAccessToken(settings);
+        const picture = await graph<{ data: { url: string } }>(`${settings.pageId}/picture`, { redirect: '0', width: '1080', height: '1080', access_token: token });
+        const container = await graph<{ id: string }>(`${settings.igUserId}/media`, { image_url: picture.data.url, caption: 'Ad Studio test, never published', access_token: token }, 'POST');
+        for (let attempt = 0; attempt < 6; attempt++) {
+          const { status_code } = await graph<{ status_code: string }>(container.id, { fields: 'status_code', access_token: token });
+          if (status_code === 'FINISHED') return 'Instagram accepted a test post (it was not published)';
+          if (status_code === 'ERROR' || status_code === 'EXPIRED') throw new Error(`Instagram could not process the test image (${status_code})`);
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+        }
+        return 'Instagram accepted the request; the test image was still processing';
+      });
+    }
   } else {
     console.log('  – Instagram: skipped (not in POST_PLATFORMS)');
   }
