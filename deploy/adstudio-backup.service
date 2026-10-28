@@ -1,0 +1,10 @@
+# One backup run (deploy/backup.sh). Started every night by adstudio-backup.timer.
+# Copy both files to /etc/systemd/system/, then: systemctl daemon-reload && systemctl enable --now adstudio-backup.timer
+[Unit]
+Description=Ad Studio nightly backup
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=publisher
+ExecStart=/usr/bin/bash /home/publisher/adstudio/deploy/backup.sh
