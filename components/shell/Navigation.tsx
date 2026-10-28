@@ -11,6 +11,7 @@ const PAGES: { href: string; label: string; icon: IconName }[] = [
   { href: '/products', label: 'Products', icon: 'products' },
   { href: '/review', label: 'Review', icon: 'review' },
   { href: '/schedule', label: 'Schedule', icon: 'schedule' },
+  { href: '/meta-ads', label: 'Meta Ads', icon: 'megaphone' },
 ];
 
 function useCurrentPage() {

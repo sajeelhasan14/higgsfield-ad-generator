@@ -99,3 +99,27 @@ CREATE TABLE IF NOT EXISTS posting_slots (
 INSERT INTO posting_slots (time_of_day)
 SELECT t FROM (VALUES (TIME '12:00'), (TIME '18:00')) AS defaults(t)
 WHERE NOT EXISTS (SELECT 1 FROM posting_slots);
+
+-- Paid Meta ads (Marketing API). One row per time an ad is promoted; an ad can be promoted more than once.
+-- Each row is one Meta campaign with one ad set (budget, audience, end date) and one ad (the picture + caption + link).
+-- It is created paused; status is what we last set ('paused' or 'active'). Meta's own view (in review,
+-- rejected, running…) is read live from Meta. The Meta IDs are NULL for one made in dry run.
+-- An ad that has been promoted can't be deleted (no ON DELETE), so the spend history stays.
+CREATE TABLE IF NOT EXISTS paid_ads (
+  id BIGSERIAL PRIMARY KEY,
+  ad_id BIGINT NOT NULL REFERENCES ads(id),
+  status TEXT NOT NULL DEFAULT 'paused' CHECK (status IN ('paused', 'active')),
+  daily_budget NUMERIC(10, 2) NOT NULL,        -- in the ad account's currency, e.g. 5.00
+  currency TEXT NOT NULL,
+  days INTEGER NOT NULL,                       -- how long it runs once switched on
+  link TEXT NOT NULL,                          -- the product page the "Shop Now" button opens
+  ends_at TIMESTAMPTZ NULL,                    -- set when first switched on: now + days
+  paused_reason TEXT NULL,                     -- why the worker switched it off (e.g. prices changed in Shopify)
+  campaign_id TEXT NULL,
+  adset_id TEXT NULL,
+  creative_id TEXT NULL,
+  meta_ad_id TEXT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS paid_ads_ad_id_idx ON paid_ads(ad_id);

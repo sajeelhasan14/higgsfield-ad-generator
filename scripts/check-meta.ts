@@ -1,7 +1,7 @@
-// Checks the Meta (Instagram + Facebook) settings before switching posting on. Read-only: it posts nothing.
+// Checks the Meta (Instagram + Facebook, and paid ads) settings before switching them on. Read-only: it posts and spends nothing.
 // Usage: npm run meta:check
 //        npm run meta:check -- --try-instagram   also prepares an Instagram post without publishing it
-import { META_GRAPH_VERSION, POST_PLATFORMS, metaSettings, publicBaseUrl } from '@/lib/config';
+import { META_GRAPH_VERSION, POST_PLATFORMS, metaAdsSettings, metaSettings, publicBaseUrl } from '@/lib/config';
 import { graph, pageAccessToken } from '@/lib/publishing/meta';
 
 let failed = false;
@@ -64,6 +64,34 @@ async function main() {
     if (!res.ok) throw new Error(`${publicBaseUrl()} answered ${res.status}`);
     return `${publicBaseUrl()} is reachable`;
   });
+
+  // Paid ads (the Meta Ads page): only checked once META_AD_ACCOUNT_ID is set, so posting can be checked without it.
+  if (process.env.META_AD_ACCOUNT_ID?.trim()) {
+    const ads = metaAdsSettings();
+    await check('Ads permission', async () => {
+      const perms = await graph<{ data: { permission: string; status: string }[] }>('me/permissions', { access_token: ads.accessToken });
+      if (!perms.data.some((p) => p.permission === 'ads_management' && p.status === 'granted')) {
+        throw new Error('the token has no ads_management: generate a new System User token with it ticked');
+      }
+      return 'ads_management granted';
+    });
+    await check('Ad account', async () => {
+      const account = await graph<{ name: string; currency: string; account_status: number; funding_source?: string }>(ads.adAccountId, {
+        fields: 'name,currency,account_status,funding_source',
+        access_token: ads.accessToken,
+      });
+      // 1 is ACTIVE; anything else (disabled, unsettled, closed…) means ads can't run.
+      if (account.account_status !== 1) throw new Error(`${account.name} is not active (status ${account.account_status}), see Ads Manager`);
+      return `${account.name}, ${account.currency}`;
+    });
+    await check('Ad account payment method', async () => {
+      const account = await graph<{ funding_source?: string }>(ads.adAccountId, { fields: 'funding_source', access_token: ads.accessToken });
+      if (!account.funding_source) throw new Error('no card yet: the client adds one in Ads Manager → Billing & payments');
+      return 'added';
+    });
+  } else {
+    console.log('  – Paid ads: skipped (META_AD_ACCOUNT_ID not set)');
+  }
 
   console.log(failed ? '\nFix the ✗ items before setting PUBLISH_DRY_RUN=0.' : '\nAll good: posting can be switched on with PUBLISH_DRY_RUN=0.');
   if (failed) process.exitCode = 1;

@@ -84,8 +84,9 @@ export async function unscheduleAd(adId: string): Promise<void> {
 export async function deleteAd(adId: string): Promise<void> {
   const rows = await query(
     `DELETE FROM ads WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM posts WHERE ad_id = $1 AND status IN ('publishing', 'published'))
+       AND NOT EXISTS (SELECT 1 FROM paid_ads WHERE ad_id = $1)
      RETURNING id`,
     [adId],
   );
-  if (!rows.length) throw new Error('This ad has already been posted, so it is kept for the history');
+  if (!rows.length) throw new Error('This ad has already been posted or promoted, so it is kept for the history');
 }

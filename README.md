@@ -56,6 +56,14 @@ The top bar of the dashboard always shows which mode is on.
 4. Run `npm run meta:check` until every line shows ✓.
 5. Set `PUBLISH_DRY_RUN=0` and restart the worker.
 
+## Paid Meta ads (the Meta Ads page)
+
+A finished ad can be promoted as a paid link ad ("Shop Now" → the product page): one campaign (Traffic) → one ad set (daily budget, days, UK adults, automatic Facebook + Instagram placements) → one ad. It is created **switched off**; pressing Switch on starts its days. The worker switches off a running paid ad within the hour if its product stops being Active or its prices change.
+
+1. In Business settings: an ad account with a payment method, assigned to the System User with **Manage campaigns**.
+2. In the Meta app: add the **Marketing API** product; regenerate the System User token with **`ads_management`** (plus the permissions above).
+3. Set `META_AD_ACCOUNT_ID`, run `npm run migrate`, restart the app and the worker.
+
 ## Deploying on the VPS
 
 Ubuntu with Node.js 22+, PostgreSQL and Caddy. Files are in `deploy/`.

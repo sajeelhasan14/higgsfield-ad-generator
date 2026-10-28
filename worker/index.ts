@@ -2,6 +2,7 @@
 // Start it with: npm run worker
 import { getPool } from '@/lib/db';
 import { GENERATION_DRY_RUN, PUBLISH_DRY_RUN } from '@/lib/config';
+import { checkPaidAds } from './tasks/check-paid-ads';
 import { generateAds } from './tasks/generate-ads';
 import { publishDuePosts } from './tasks/publish-due-posts';
 import { syncProductsDaily } from './tasks/sync-products';
@@ -13,6 +14,7 @@ const tasks: { name: string; run: () => Promise<void> }[] = [
   { name: 'publish due posts', run: publishDuePosts },
   { name: 'generate ads', run: generateAds },
   { name: 'daily Shopify sync', run: syncProductsDaily },
+  { name: 'check paid ads', run: checkPaidAds },
 ];
 
 let stopping = false;

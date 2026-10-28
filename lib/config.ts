@@ -55,6 +55,21 @@ export function metaSettings(): MetaSettings {
   };
 }
 
+/**
+ * Paid ads: the ad account ("act_123…" or just the number) and the Page the ads run as.
+ * Uses the same System User token as posting; it also needs ads_management and the ad account assigned.
+ */
+export function metaAdsSettings(): { accessToken: string; pageId: string; adAccountId: string } {
+  const read = (name: string) => process.env[name]?.trim() || '';
+  const missing = ['META_ACCESS_TOKEN', 'META_PAGE_ID', 'META_AD_ACCOUNT_ID'].filter((name) => !read(name));
+  if (missing.length) throw new Error(`Paid ads are not set up: add ${missing.join(', ')} to the environment (see .env.example)`);
+  return {
+    accessToken: read('META_ACCESS_TOKEN'),
+    pageId: read('META_PAGE_ID'),
+    adAccountId: `act_${read('META_AD_ACCOUNT_ID').replace(/^act_/, '')}`,
+  };
+}
+
 /** The app's public https address (e.g. https://ads.example.com). Meta downloads the post images from it. */
 export function publicBaseUrl(): string {
   const url = process.env.PUBLIC_BASE_URL?.trim().replace(/\/$/, '');
