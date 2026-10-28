@@ -1,127 +1,130 @@
-// The single post image: the product photo on top, a forest-green panel with the name, the variants and their
-// prices below, and a terracotta price badge where the two meet, like a label on a seed packet.
+// The single post image: the product photo fills the frame, a dark fade keeps the text readable on any photo,
+// and the name, the store's own facts, a strip of variant cards and the lead price sit at the bottom.
 import { BRAND } from '@/lib/ads/brand';
-import { BODY, SERIF, SLIDE_HEIGHT, SLIDE_WIDTH, Wordmark, headlineLines, headlineSize } from './shared';
+import { BODY, DISPLAY, Headline, SLIDE_HEIGHT, SLIDE_WIDTH, Wordmark, headlineSize } from './shared';
 
-const { forest, cream, sage, terracotta } = BRAND.colors;
+const { text, muted, accent, chip } = BRAND.colors;
 
-const MIN_PANEL_HEIGHT = 500;
-const PANEL_PADDING_X = 64;
-const BADGE = 250; // badge diameter
-const ROW_HEIGHT = 46;
+// Darkens the top for the wordmark and the lower half for the text; rgb(11,12,14) is BRAND.colors.background.
+const FADE = 'linear-gradient(180deg, rgba(11,12,14,0.55) 0%, rgba(11,12,14,0) 18%, rgba(11,12,14,0) 30%, rgba(11,12,14,0.9) 60%, #0B0C0E 100%)';
 
-export interface PriceRow {
-  label: string; // e.g. "Stand Alone"
-  price: string; // e.g. "£2,150"
-  wasPrice: string | null;
+const CARD_WIDTH = 200;
+const CARD_PHOTO_HEIGHT = 130;
+
+export interface CardProps {
+  label: string; // e.g. "Black with Red Fleck"
+  price: string; // e.g. "£39"
+  fromPrice: boolean;
+  photo: string | null; // data URI of the variant's own photo
 }
 
 export interface PostImageProps {
   image: string; // data URI
-  eyebrow: string; // small line above the name, e.g. "Metal Planters"
+  eyebrow: string; // small line above the name, e.g. "Interlocking Rubber Gym Mats"
   headline: string;
-  prices: PriceRow[]; // filled only for products with 2–4 variants
-  options: string[]; // the short summary used instead when there are 5 or more variants
-  price: string; // the cheapest price, e.g. "£22.50"
-  fromPrice: boolean; // true when variants cost different amounts
-  wasPrice: string | null; // the old price when the cheapest variant is on sale
+  facts: string[]; // up to two short facts from the title, e.g. "200kg Drop Rated"
+  cards: CardProps[]; // 0–4 variant cards
+  price: string; // the lead price, e.g. "£45"
+  fromPrice: boolean; // true when the product's variants cost different amounts
+  unit: string | null; // e.g. "per metre"
+  swipe: number | null; // on an Instagram carousel cover: how many option slides follow (the cards are left out then)
+  wasPrice: string | null; // the old price when the lead variant is on sale
 }
 
-export function PostImage({ image, eyebrow, headline, prices, options, price, fromPrice, wasPrice }: PostImageProps) {
-  const nameSize = prices.length >= 3 ? Math.min(headlineSize(headline), 74) : headlineSize(headline);
-  // The panel grows upwards to fit its text, so a price list never runs off the bottom.
-  const textWidth = SLIDE_WIDTH - PANEL_PADDING_X * 2;
-  const contentHeight =
-    60 + 30 + 14 + // top padding, category, gap
-    headlineLines(headline, nameSize, textWidth) * nameSize * 1.04 +
-    (prices.length ? 22 + prices.length * ROW_HEIGHT : options.length ? 18 + options.length * 36 : 0) +
-    40 + 34 + 52; // gap, website, bottom padding
-  const panelHeight = Math.max(MIN_PANEL_HEIGHT, Math.ceil(contentHeight));
-  const panelTop = SLIDE_HEIGHT - panelHeight;
-
+export function PostImage({ image, eyebrow, headline, facts, cards, price, fromPrice, unit, wasPrice, swipe }: PostImageProps) {
+  // With a row of cards the headline gets less room, so very large type is capped.
+  const nameSize = cards.length ? Math.min(headlineSize(headline), 96) : headlineSize(headline);
   return (
-    <div style={{ display: 'flex', width: SLIDE_WIDTH, height: SLIDE_HEIGHT, position: 'relative', background: forest }}>
+    <div style={{ display: 'flex', width: SLIDE_WIDTH, height: SLIDE_HEIGHT, position: 'relative', background: BRAND.colors.background }}>
       {/* eslint-disable-next-line @next/next/no-img-element -- Satori draws plain <img>, not next/image */}
-      <img src={image} width={SLIDE_WIDTH} height={panelTop + 50} style={{ position: 'absolute', top: 0, left: 0, objectFit: 'cover' }} alt="" />
-
-      <div style={{ position: 'absolute', top: 48, left: 48, display: 'flex' }}>
-        <Wordmark />
-      </div>
+      <img src={image} width={SLIDE_WIDTH} height={SLIDE_HEIGHT} style={{ position: 'absolute', top: 0, left: 0, objectFit: 'cover' }} alt="" />
+      <div style={{ position: 'absolute', top: 0, left: 0, width: SLIDE_WIDTH, height: SLIDE_HEIGHT, backgroundImage: FADE }} />
 
       <div
         style={{
           position: 'absolute',
-          top: panelTop,
+          top: 0,
           left: 0,
           width: SLIDE_WIDTH,
-          height: panelHeight,
-          boxSizing: 'border-box', // padding inside the panel, not added to it
-          padding: `60px ${PANEL_PADDING_X}px 52px`,
+          height: SLIDE_HEIGHT,
+          boxSizing: 'border-box', // padding inside the frame, not added to it
+          padding: 72,
           display: 'flex',
           flexDirection: 'column',
-          background: forest,
-          borderTopLeftRadius: 56,
-          borderTopRightRadius: 56,
+          justifyContent: 'space-between',
         }}
       >
-        <div style={{ maxWidth: 620, fontFamily: BODY, fontWeight: 600, fontSize: 26, letterSpacing: 4, color: sage }}>{eyebrow.toUpperCase()}</div>
-        <div style={{ fontFamily: SERIF, fontWeight: 700, fontSize: nameSize, lineHeight: 1.04, color: cream, marginTop: 14, textWrap: 'balance' }}>
-          {headline}
-        </div>
+        <Wordmark />
 
-        {prices.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', marginTop: 22 }}>
-            {prices.map((row) => (
-              <div key={row.label} style={{ display: 'flex', alignItems: 'flex-end', height: ROW_HEIGHT }}>
-                {/* A long variant name is shortened with "…"; its price always shows in full. */}
-                <div style={{ maxWidth: 640, fontFamily: BODY, fontWeight: 500, fontSize: 30, color: cream, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {row.label}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 34, letterSpacing: 5, color: accent }}>{eyebrow.toUpperCase()}</div>
+          <div style={{ fontFamily: DISPLAY, fontWeight: 900, fontSize: nameSize, lineHeight: 0.92, color: text, marginTop: 12, textWrap: 'balance' }}>
+            <Headline text={headline} />
+          </div>
+
+          {facts.length > 0 && (
+            <div style={{ display: 'flex', gap: 14, marginTop: 24 }}>
+              {facts.map((fact) => (
+                <div key={fact} style={{ display: 'flex', padding: '8px 22px', borderRadius: 999, background: chip }}>
+                  <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 32, letterSpacing: 1, color: accent }}>{fact.toUpperCase()}</div>
                 </div>
-                {/* Dotted line between the name and the price, like a menu. */}
-                <div style={{ flexGrow: 1, margin: '0 16px 9px', borderBottom: '3px dotted rgba(244,239,227,0.3)' }} />
-                {row.wasPrice && (
-                  <div style={{ fontFamily: BODY, fontWeight: 500, fontSize: 24, color: sage, textDecoration: 'line-through', marginRight: 12, marginBottom: 3 }}>
-                    {row.wasPrice}
+              ))}
+            </div>
+          )}
+
+          {cards.length > 0 && (
+            <div style={{ display: 'flex', gap: 16, marginTop: 28 }}>
+              {cards.map((c) => (
+                <div
+                  key={c.label}
+                  style={{ display: 'flex', flexDirection: 'column', width: CARD_WIDTH, borderRadius: 18, overflow: 'hidden', background: 'rgba(255,255,255,0.08)' }}
+                >
+                  {c.photo && (
+                    // eslint-disable-next-line @next/next/no-img-element -- Satori draws plain <img>, not next/image
+                    <img src={c.photo} width={CARD_WIDTH} height={CARD_PHOTO_HEIGHT} style={{ objectFit: 'cover' }} alt="" />
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', padding: '12px 16px 14px' }}>
+                    {/* At most three lines; a longer name is cut off rather than pushing the price down. */}
+                    <div style={{ fontFamily: BODY, fontWeight: 500, fontSize: 22, lineHeight: 1.2, maxHeight: 80, overflow: 'hidden', color: muted }}>{c.label}</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
+                      {c.fromPrice && <div style={{ fontFamily: BODY, fontWeight: 600, fontSize: 20, color: muted }}>from</div>}
+                      <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 38, color: text }}>{c.price}</div>
+                    </div>
                   </div>
-                )}
-                <div style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 34, color: cream, flexShrink: 0 }}>{row.price}</div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 18 }}>
-            {options.map((line) => (
-              <div key={line} style={{ fontFamily: BODY, fontWeight: 500, fontSize: 28, color: cream, opacity: 0.85 }}>
-                {line}
-              </div>
-            ))}
-          </div>
-        )}
+                </div>
+              ))}
+            </div>
+          )}
 
-        <div style={{ marginTop: 'auto', fontFamily: BODY, fontWeight: 600, fontSize: 28, letterSpacing: 1, color: sage }}>{`Shop at ${BRAND.website}`}</div>
-      </div>
-
-      <div
-        style={{
-          position: 'absolute',
-          top: panelTop - BADGE / 2 - 20,
-          right: 64,
-          width: BADGE,
-          height: BADGE,
-          borderRadius: 999,
-          background: terracotta,
-          border: `6px solid ${cream}`,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {fromPrice && <div style={{ fontFamily: BODY, fontWeight: 600, fontSize: 24, letterSpacing: 3, color: cream }}>FROM</div>}
-        <div style={{ fontFamily: SERIF, fontWeight: 700, fontSize: price.length > 7 ? 46 : 58, lineHeight: 1.05, color: cream }}>{price}</div>
-        {wasPrice && (
-          <div style={{ fontFamily: BODY, fontWeight: 500, fontSize: 24, color: cream, opacity: 0.85, textDecoration: 'line-through' }}>{wasPrice}</div>
-        )}
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 36 }}>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+                {fromPrice && <div style={{ fontFamily: BODY, fontWeight: 600, fontSize: 38, color: muted }}>From</div>}
+                <div style={{ fontFamily: DISPLAY, fontWeight: 900, fontSize: 110, lineHeight: 1, color: text }}>{price}</div>
+              </div>
+              {(unit || wasPrice) && (
+                <div style={{ display: 'flex', gap: 16, marginTop: 6 }}>
+                  {unit && <div style={{ fontFamily: BODY, fontWeight: 600, fontSize: 30, color: muted }}>{unit}</div>}
+                  {wasPrice && <div style={{ fontFamily: BODY, fontWeight: 600, fontSize: 30, color: muted, textDecoration: 'line-through' }}>{`was ${wasPrice}`}</div>}
+                </div>
+              )}
+            </div>
+            <div
+              style={{
+                fontFamily: BODY,
+                fontWeight: 600,
+                fontSize: 28,
+                color: text,
+                padding: '16px 28px',
+                borderRadius: 999,
+                border: '2px solid rgba(255,255,255,0.35)',
+                marginBottom: 10,
+              }}
+            >
+              {swipe ? `Swipe for all ${swipe} options »` : `Shop at ${BRAND.website} »`}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

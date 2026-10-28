@@ -1,12 +1,13 @@
 // Makes ONE paid AI picture for a real product, with exactly the prompt and settings the worker uses,
 // then renders its post, so you can judge the AI result before generating ads for real.
-// Usage: npm run try:higgsfield -- "x brace"   (a product whose title contains the text)
+// Usage: npm run try:higgsfield -- "x brace"     (a product whose title contains the text)
+//        npm run try:higgsfield -- "x brace" 3   the 4th look (camera, light, setting), as a regenerate would use
 // Saved in preview/ai/: the original photo, the AI picture, the post and the request details.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { buildCaption } from '@/lib/ads/caption';
 import { heroRequest } from '@/lib/ads/generate';
 import { download, toDataUri } from '@/lib/ads/images';
-import { renderPost } from '@/lib/ads/post';
+import { renderAd } from '@/lib/ads/post';
 import { HIGGSFIELD_MODEL } from '@/lib/config';
 import { getPool } from '@/lib/db';
 import { submit, waitForImages } from '@/lib/higgsfield/client';
@@ -18,7 +19,7 @@ async function main() {
   const text = process.argv[2];
   if (!text) throw new Error('Name a product, e.g.: npm run try:higgsfield -- "x brace"   (this costs 1 image)');
   const product = await findProduct(text);
-  const request = heroRequest(product, product.imageUrl);
+  const request = heroRequest(product, product.imageUrl, Number(process.argv[3] ?? 0));
 
   console.log(`"${product.title}": sending its photo to ${HIGGSFIELD_MODEL} (1 paid image)…`);
   const started = Date.now();
@@ -30,7 +31,9 @@ async function main() {
   const picture = await download(url);
   writeFileSync(`${DIR}/original.jpg`, await download(product.imageUrl));
   writeFileSync(`${DIR}/picture.png`, picture);
-  writeFileSync(`${DIR}/post.jpg`, await renderPost(product, await toDataUri(picture)));
+  const { post, carousel } = await renderAd(product, await toDataUri(picture));
+  writeFileSync(`${DIR}/post.jpg`, post);
+  for (const [i, slide] of carousel.entries()) writeFileSync(`${DIR}/slide-${i + 1}.jpg`, slide);
   writeFileSync(`${DIR}/caption.txt`, buildCaption(product));
   writeFileSync(`${DIR}/request.json`, JSON.stringify({ requestId, model: HIGGSFIELD_MODEL, product: product.title, request, url }, null, 2));
   console.log(`Done in ${Math.round((Date.now() - started) / 1000)}s → compare ${DIR}/original.jpg with ${DIR}/picture.png, see ${DIR}/post.jpg`);

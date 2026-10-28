@@ -2,6 +2,7 @@
 import { formatPrice } from '@/lib/format';
 import type { ProductWithVariants } from '@/lib/products/types';
 import { BRAND } from './brand';
+import { hasFromPrice, leadVariant, priceUnit } from './pricing';
 import { excerpt, shortName } from './text';
 
 const MAX_LISTED_VARIANTS = 8;
@@ -14,8 +15,9 @@ function productTypeTag(productType: string): string | null {
 
 export function buildCaption(product: ProductWithVariants): string {
   const { variants } = product;
-  const cheapest = variants.reduce((min, v) => (Number(v.price) < Number(min.price) ? v : min), variants[0]);
-  const from = new Set(variants.map((v) => v.price)).size > 1 ? 'from ' : '';
+  const lead = leadVariant(variants);
+  const from = hasFromPrice(variants) ? 'from ' : '';
+  const unit = priceUnit(product);
 
   const lines = variants.slice(0, MAX_LISTED_VARIANTS).map((v) => {
     const label = v.options.filter((o) => o.value !== 'Default Title').map((o) => o.value).join(' ') || v.title;
@@ -30,7 +32,7 @@ export function buildCaption(product: ProductWithVariants): string {
   const hashtags = [productTypeTag(product.productType), ...BRAND.hashtags].filter((t, i, all) => t && all.indexOf(t) === i);
 
   return [
-    `${shortName(product.title)} – ${from}${formatPrice(cheapest.price, cheapest.currency)}`,
+    `${shortName(product.title)} – ${from}${formatPrice(lead.price, lead.currency)}${unit ? ` ${unit}` : ''}`,
     ...(intro ? ['', intro] : []),
     ...optionList,
     '',

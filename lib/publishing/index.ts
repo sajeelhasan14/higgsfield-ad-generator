@@ -1,11 +1,12 @@
 // Sends one post to its platform, after checking the ad is still right to post.
 import { getAd } from '@/lib/ads/repository';
+import type { Ad } from '@/lib/ads/types';
 import { priceSignature } from '@/lib/ads/post';
 import { PUBLISH_DRY_RUN } from '@/lib/config';
-import type { Post } from '@/lib/posts/types';
+import type { Platform, Post } from '@/lib/posts/types';
 import { getProductWithVariants } from '@/lib/products/repository';
 import { publicMediaUrl } from './media';
-import { postToFacebook, postToInstagram } from './meta';
+import { postCarouselToInstagram, postToFacebook, postToInstagram } from './meta';
 
 /** Publishes the post and returns its ID on the platform. Throws if it could not or should not be published. */
 export async function publishPost(post: Post): Promise<string> {
@@ -26,7 +27,15 @@ export async function publishPost(post: Post): Promise<string> {
     return `dry-run-${post.platform}-${post.id}`;
   }
 
-  const imageUrl = publicMediaUrl(ad.images[0]);
-  if (post.platform === 'instagram') return postToInstagram(imageUrl, ad.caption);
-  return postToFacebook(imageUrl, ad.caption);
+  return sendAd(ad, post.platform);
+}
+
+/**
+ * Posts the ad's images, no checks: image 1 is the single post; images 2+ (when there are any) are the
+ * Instagram carousel. Used by publishPost and by the test script, so a test posts exactly what the worker would.
+ */
+export async function sendAd(ad: Ad, platform: Platform): Promise<string> {
+  const [single, ...carousel] = ad.images.map(publicMediaUrl);
+  if (platform === 'facebook') return postToFacebook(single, ad.caption);
+  return carousel.length >= 2 ? postCarouselToInstagram(carousel, ad.caption) : postToInstagram(single, ad.caption);
 }

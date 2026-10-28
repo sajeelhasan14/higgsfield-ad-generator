@@ -1,4 +1,4 @@
-// One ad on the Review page: the post image on the left, caption and buttons on the right.
+// One ad on the Review page: the post image (and any Instagram carousel slides) on the left, caption and buttons on the right.
 import { approveAction, deleteAction, refreshDesignAction, regenerateAction } from '@/app/(dashboard)/review/actions';
 import { ActionButton } from '@/components/ActionButton';
 import type { Ad } from '@/lib/ads/types';
@@ -26,6 +26,18 @@ export function AdCard({ ad }: { ad: Ad }) {
         ) : (
           <div className="grid aspect-[4/5] w-full place-items-center rounded-xl border border-dashed border-line bg-canvas text-sm text-muted">
             {ad.status === 'generating' ? <span className="animate-pulse">Drawing…</span> : 'No image'}
+          </div>
+        )}
+        {/* Images 2+ are the Instagram carousel (only for products whose variants have their own photos). */}
+        {ad.status === 'ready' && ad.images.length > 2 && (
+          <div className="mt-3">
+            <p className="mb-1.5 text-xs text-muted">Instagram carousel · {ad.images.length - 1} slides</p>
+            <div className="flex gap-1.5 overflow-x-auto">
+              {ad.images.slice(1).map((key, i) => (
+                // eslint-disable-next-line @next/next/no-img-element -- our own JPEG, already sized
+                <img key={key} src={mediaUrl(key)} alt={`Slide ${i + 1}`} className="aspect-[4/5] w-14 shrink-0 rounded-md border border-line object-cover" />
+              ))}
+            </div>
           </div>
         )}
       </div>

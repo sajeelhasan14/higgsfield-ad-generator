@@ -44,6 +44,8 @@ The top bar of the dashboard always shows which mode is on.
 | `npm run try:higgsfield -- "x brace"` | Makes **one paid** AI picture for a product, to judge quality |
 | `npm run meta:check` | Checks the Meta settings, read-only, before posting goes live |
 | `npm run meta:check -- --try-instagram` | Also prepares an Instagram post without publishing it, to prove posting is allowed |
+| `npm run meta:test-post` | On the server: posts one ready ad to the Facebook Page for real, then deletes it when you press Enter (`-- --instagram` for Instagram) |
+| `npm run import:products-json` | Temporary: loads `products.json` pages saved from the store's website (in `imports/`) instead of a Shopify sync |
 | `npm run migrate` | Applies `db/schema.sql` (safe to run again) |
 
 ## Going live with Instagram and Facebook

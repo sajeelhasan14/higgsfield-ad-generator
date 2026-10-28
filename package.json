@@ -11,7 +11,9 @@
     "worker": "tsx --env-file=.env.local worker/index.ts",
     "preview:ad": "tsx --env-file=.env.local scripts/preview-ad.tsx",
     "try:higgsfield": "tsx --env-file=.env.local scripts/try-higgsfield.tsx",
-    "meta:check": "tsx --env-file=.env.local scripts/check-meta.ts"
+    "meta:check": "tsx --env-file=.env.local scripts/check-meta.ts",
+    "meta:test-post": "tsx --env-file=.env.local scripts/test-post.ts",
+    "import:products-json": "tsx --env-file=.env.local scripts/import-products-json.ts"
   },
   "dependencies": {
     "next": "16.4.3",

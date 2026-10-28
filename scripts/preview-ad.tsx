@@ -5,7 +5,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { buildCaption } from '@/lib/ads/caption';
 import { toDataUri } from '@/lib/ads/images';
-import { renderPost } from '@/lib/ads/post';
+import { renderAd } from '@/lib/ads/post';
 import { getPool } from '@/lib/db';
 import { findProduct } from './find-product';
 
@@ -13,11 +13,13 @@ async function main() {
   const product = await findProduct(process.argv[2]);
   const started = Date.now();
   const picture = process.argv[3] ? readFileSync(process.argv[3]) : product.imageUrl;
-  const post = await renderPost(product, await toDataUri(picture));
+  const { post, carousel } = await renderAd(product, await toDataUri(picture));
   mkdirSync('preview', { recursive: true });
   writeFileSync('preview/post.jpg', post);
+  for (const [i, slide] of carousel.entries()) writeFileSync(`preview/slide-${i + 1}.jpg`, slide);
   writeFileSync('preview/caption.txt', buildCaption(product));
-  console.log(`"${product.title}" → preview/post.jpg and preview/caption.txt (${Date.now() - started} ms)`);
+  const slides = carousel.length ? ` and an Instagram carousel (preview/slide-1…${carousel.length}.jpg)` : '';
+  console.log(`"${product.title}" → preview/post.jpg${slides} and preview/caption.txt (${Date.now() - started} ms)`);
 }
 
 main()

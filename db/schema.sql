@@ -58,8 +58,8 @@ ALTER TABLE ads ADD COLUMN IF NOT EXISTS error TEXT NULL;
 -- posting: if Shopify's prices changed since, the post is stopped instead of advertising a wrong price.
 ALTER TABLE ads ADD COLUMN IF NOT EXISTS price_signature TEXT NULL;
 
--- The carousel's images, in order (position 1 is the first slide). image_url holds the file's storage
--- key (e.g. "ads/12/a1-slide-1.jpg"); lib/storage turns it into a URL.
+-- An ad's images, in order. Position 1 is the single post; positions 2+ are the Instagram carousel slides,
+-- when there is one. image_url holds the file's storage key (e.g. "ads/12/a1-slide-1-….jpg"); lib/storage turns it into a URL.
 CREATE TABLE IF NOT EXISTS ad_images (
   ad_id BIGINT NOT NULL REFERENCES ads(id) ON DELETE CASCADE,
   position INTEGER NOT NULL,

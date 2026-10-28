@@ -6,15 +6,15 @@ interface GraphErrorBody {
   error?: { message: string; code: number; error_subcode?: number };
 }
 
-/** One Graph API call. GET sends the fields in the address, POST in the body. Never puts the token in an error. */
-export async function graph<T>(path: string, params: Record<string, string>, method: 'GET' | 'POST' = 'GET'): Promise<T> {
+/** One Graph API call. GET and DELETE send the fields in the address, POST in the body. Never puts the token in an error. */
+export async function graph<T>(path: string, params: Record<string, string>, method: 'GET' | 'POST' | 'DELETE' = 'GET'): Promise<T> {
   const url = new URL(`https://graph.facebook.com/${META_GRAPH_VERSION}/${path}`);
   let res: Response;
-  if (method === 'GET') {
-    for (const [name, value] of Object.entries(params)) url.searchParams.set(name, value);
-    res = await fetch(url);
-  } else {
+  if (method === 'POST') {
     res = await fetch(url, { method: 'POST', body: new URLSearchParams(params) });
+  } else {
+    for (const [name, value] of Object.entries(params)) url.searchParams.set(name, value);
+    res = await fetch(url, { method });
   }
   const body = (await res.json().catch(() => ({}))) as T & GraphErrorBody;
   if (!res.ok || body.error) {
@@ -47,17 +47,47 @@ export async function postToInstagram(imageUrl: string, caption: string): Promis
   const token = await pageAccessToken(settings);
 
   const container = await graph<{ id: string }>(`${settings.igUserId}/media`, { image_url: imageUrl, caption, access_token: token }, 'POST');
+  await waitUntilReady(container.id, token);
 
+  const published = await graph<{ id: string }>(`${settings.igUserId}/media_publish`, { creation_id: container.id, access_token: token }, 'POST');
+  return published.id;
+}
+
+/**
+ * An Instagram carousel (2–10 images): each image becomes a carousel item, then one carousel container holds
+ * them in order with the caption, and that container is published. It counts as one post in Instagram's limit.
+ */
+export async function postCarouselToInstagram(imageUrls: string[], caption: string): Promise<string> {
+  const settings = metaSettings();
+  const token = await pageAccessToken(settings);
+
+  const children: string[] = [];
+  for (const imageUrl of imageUrls) {
+    const item = await graph<{ id: string }>(`${settings.igUserId}/media`, { image_url: imageUrl, is_carousel_item: 'true', access_token: token }, 'POST');
+    await waitUntilReady(item.id, token);
+    children.push(item.id);
+  }
+
+  const carousel = await graph<{ id: string }>(
+    `${settings.igUserId}/media`,
+    { media_type: 'CAROUSEL', children: children.join(','), caption, access_token: token },
+    'POST',
+  );
+  await waitUntilReady(carousel.id, token);
+
+  const published = await graph<{ id: string }>(`${settings.igUserId}/media_publish`, { creation_id: carousel.id, access_token: token }, 'POST');
+  return published.id;
+}
+
+/** Waits (up to a minute) until Instagram has downloaded and processed a container; if not, the post is retried later. */
+async function waitUntilReady(containerId: string, token: string): Promise<void> {
   for (let check = 0; ; check++) {
-    const { status_code } = await graph<{ status_code: string }>(container.id, { fields: 'status_code', access_token: token });
-    if (status_code === 'FINISHED') break;
+    const { status_code } = await graph<{ status_code: string }>(containerId, { fields: 'status_code', access_token: token });
+    if (status_code === 'FINISHED') return;
     if (status_code === 'ERROR' || status_code === 'EXPIRED') throw new Error(`Instagram could not process the image (${status_code})`);
     if (check >= 12) throw new Error('Instagram is still processing the image; it will be tried again');
     await sleep(5000);
   }
-
-  const published = await graph<{ id: string }>(`${settings.igUserId}/media_publish`, { creation_id: container.id, access_token: token }, 'POST');
-  return published.id;
 }
 
 /** A Facebook Page photo post: the image with the caption as its text, published straight away. */

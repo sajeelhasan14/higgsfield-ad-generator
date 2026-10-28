@@ -1,13 +1,21 @@
-// Decides what goes on a product's post image, then renders it to a JPEG.
-// One image per product: no product has its own photo per variant, so a carousel would repeat the same picture.
+// Decides what goes on a product's post images, then renders them to JPEGs:
+// - the single post (Facebook, and Instagram when there is no carousel): the cover with a strip of variant cards;
+// - the Instagram carousel, only when every variant card has its own photo: cover, one slide per card, shop slide.
+// The caption lists every variant.
 import { formatPrice } from '@/lib/format';
 import type { ProductWithVariants, Variant } from '@/lib/products/types';
+import { download, toBackdropDataUri, toDataUri } from './images';
+import { hasFromPrice, leadVariant, priceUnit } from './pricing';
 import { renderSlide } from './render';
-import { PostImage, type PriceRow } from './templates/PostImage';
-import { shortName } from './text';
+import { FRAME_HEIGHT, ShopSlide, VariantSlide } from './templates/CarouselSlides';
+import { PostImage, type CardProps } from './templates/PostImage';
+import { shortName, titleFacts } from './text';
+import { variantCards, type VariantCard } from './variants';
 
-/** Up to this many variants are listed one by one with their prices; more get the short summary. */
-const MAX_PRICE_ROWS = 4;
+/** Card photos are drawn about 200px wide; 400px keeps them sharp without making the render slow. */
+const CARD_PHOTO_WIDTH = 400;
+/** On a carousel slide the variant photo is about 950px wide. */
+const SLIDE_PHOTO_WIDTH = 1080;
 
 /** "£2,150" fits the image better than "£2,150.00"; pence stay when there are any. */
 function shortPrice(amount: string, currency: string): string {
@@ -16,79 +24,110 @@ function shortPrice(amount: string, currency: string): string {
 
 const isOnSale = (v: Variant) => v.compareAtPrice !== null && Number(v.compareAtPrice) > Number(v.price);
 
-/** Shopify gives single-variant products one option called "Title" with the value "Default Title". */
-const realOptions = (v: Variant) => v.options.filter((o) => o.value !== 'Default Title');
-
-/** "Length: 0.6m · 1.2m · 1.8m" for each option that differs between variants (at most two lines). */
-function optionLines(variants: Variant[]): string[] {
-  const values = new Map<string, string[]>();
-  for (const v of variants) {
-    for (const o of realOptions(v)) {
-      const list = values.get(o.name) ?? [];
-      if (!list.includes(o.value)) values.set(o.name, [...list, o.value]);
-    }
-  }
-  return [...values]
-    .filter(([, list]) => list.length > 1)
-    .slice(0, 2)
-    .map(([name, list]) => {
-      const joined = `${name}: ${list.join(' · ')}`;
-      return joined.length <= 52 ? joined : `${list.length} ${name.toLowerCase()} options`;
-    });
-}
-
-/**
- * This store writes the whole description into each variant's name ("'X' Brace Gate - Stand Alone (1.04m H, …)"),
- * so the words every name shares are removed from the start and end, leaving only what differs ("Stand Alone").
- */
-function differingParts(labels: string[]): string[] {
-  const words = labels.map((l) => l.split(' '));
-  const shortest = Math.min(...words.map((w) => w.length));
-  let start = 0;
-  while (start < shortest - 1 && words.every((w) => w[start] === words[0][start])) start++;
-  let end = 0;
-  while (end < shortest - start - 1 && words.every((w) => w[w.length - 1 - end] === words[0][words[0].length - 1 - end])) end++;
-  const trimmed = words.map((w) => w.slice(start, w.length - end).join(' ').replace(/^[\s\-–—,:·]+|[\s\-–—,:·(]+$/g, ''));
-  return trimmed.every(Boolean) ? trimmed : labels;
-}
-
-/** One row per variant ("Stand Alone … £2,150"), only for products with 2–4 variants. */
-function priceRows(variants: Variant[]): PriceRow[] {
-  if (variants.length < 2 || variants.length > MAX_PRICE_ROWS) return [];
-  const labels = differingParts(variants.map((v) => realOptions(v).map((o) => o.value).join(' · ') || v.title));
-  return variants.map((v, i) => ({
-    label: labels[i],
-    price: shortPrice(v.price, v.currency),
-    wasPrice: isOnSale(v) ? shortPrice(v.compareAtPrice!, v.currency) : null,
-  }));
-}
-
 /** Every variant's price as one string ("id:208.00:|id:84.00:"). If Shopify's prices change, so does this. */
 export function priceSignature(product: ProductWithVariants): string {
   return product.variants.map((v) => `${v.id}:${v.price}:${v.compareAtPrice ?? ''}`).sort().join('|');
 }
 
-/** The post as JSX. Pure: the same product and picture always give the same image. */
-export function buildPost(product: ProductWithVariants, image: string) {
+/** Downloads each distinct card photo once, at the given width. A failed download just leaves it out. */
+async function cardPhotos(cards: VariantCard[], width: number): Promise<Record<string, string>> {
+  const photos: Record<string, string> = {};
+  for (const c of cards) {
+    if (c.imageUrl && !photos[c.imageUrl]) {
+      const photo = await toDataUri(c.imageUrl, width).catch(() => null);
+      if (photo) photos[c.imageUrl] = photo;
+    }
+  }
+  return photos;
+}
+
+/** For carousel slides: each distinct card photo, plus the blurred backdrop that fills its frame. */
+async function slidePhotos(cards: VariantCard[]): Promise<Record<string, { photo: string; backdrop: string }>> {
+  const photos: Record<string, { photo: string; backdrop: string }> = {};
+  for (const c of cards) {
+    if (!c.imageUrl || photos[c.imageUrl]) continue;
+    const bytes = await download(c.imageUrl).catch(() => null);
+    if (bytes) photos[c.imageUrl] = { photo: await toDataUri(bytes, SLIDE_PHOTO_WIDTH), backdrop: await toBackdropDataUri(bytes, SLIDE_PHOTO_WIDTH, FRAME_HEIGHT) };
+  }
+  return photos;
+}
+
+/** True when every card has a downloaded photo: only then are photos shown on the cards, or a carousel made. */
+const allHavePhotos = (cards: VariantCard[], photos: Record<string, unknown>) => cards.length > 0 && cards.every((c) => c.imageUrl && photos[c.imageUrl]);
+
+/**
+ * The variant cards with their photos. If any card has no photo, the whole row is drawn without photos,
+ * so the row never has a gap.
+ */
+function cardProps(cards: VariantCard[], photos: Record<string, string>): CardProps[] {
+  const withPhotos = allHavePhotos(cards, photos);
+  return cards.map((c) => ({
+    label: c.label,
+    price: shortPrice(c.price, c.currency),
+    fromPrice: c.fromPrice,
+    photo: withPhotos ? photos[c.imageUrl!] : null,
+  }));
+}
+
+/**
+ * The cover as JSX. Pure: the same product, picture and card photos (by Shopify URL) always give the same image.
+ * With `swipe`, it is a carousel cover: no card strip, and the button says how many option slides follow.
+ */
+export function buildPost(product: ProductWithVariants, image: string, photos: Record<string, string> = {}, swipe: number | null = null) {
   const { variants } = product;
   if (variants.length === 0) throw new Error(`"${product.title}" has no variants to show`);
 
-  const cheapest = variants.reduce((min, v) => (Number(v.price) < Number(min.price) ? v : min));
+  const lead = leadVariant(variants);
+  const headline = shortName(product.title);
+  // The product type often repeats the name ("Gym Turf Sled Track" twice); the general label is used then.
+  const eyebrow = product.productType && !headline.toLowerCase().includes(product.productType.toLowerCase()) ? product.productType : 'Gym Flooring';
 
   return (
     <PostImage
       image={image}
-      eyebrow={product.productType || 'Garden'}
-      headline={shortName(product.title)}
-      prices={priceRows(variants)}
-      options={optionLines(variants)}
-      price={shortPrice(cheapest.price, cheapest.currency)}
-      fromPrice={new Set(variants.map((v) => v.price)).size > 1}
-      wasPrice={isOnSale(cheapest) ? shortPrice(cheapest.compareAtPrice!, cheapest.currency) : null}
+      eyebrow={eyebrow}
+      headline={headline}
+      facts={titleFacts(product.title)}
+      cards={swipe ? [] : cardProps(variantCards(variants), photos)}
+      price={shortPrice(lead.price, lead.currency)}
+      fromPrice={hasFromPrice(variants)}
+      unit={priceUnit(product)}
+      wasPrice={isOnSale(lead) ? shortPrice(lead.compareAtPrice!, lead.currency) : null}
+      swipe={swipe}
     />
   );
 }
 
-export async function renderPost(product: ProductWithVariants, image: string): Promise<Buffer> {
-  return renderSlide(buildPost(product, image));
+export interface RenderedAd {
+  post: Buffer; // the single post image
+  carousel: Buffer[]; // the Instagram carousel slides, or none
+}
+
+/** Draws the single post and, when every variant card has its own photo, the Instagram carousel. */
+export async function renderAd(product: ProductWithVariants, image: string): Promise<RenderedAd> {
+  const cards = variantCards(product.variants);
+  const post = await renderSlide(buildPost(product, image, await cardPhotos(cards, CARD_PHOTO_WIDTH)));
+
+  const photos = await slidePhotos(cards);
+  if (!allHavePhotos(cards, photos)) return { post, carousel: [] };
+
+  const name = shortName(product.title);
+  const unit = priceUnit(product);
+  const carousel = [await renderSlide(buildPost(product, image, {}, cards.length))];
+  for (const c of cards) {
+    const slide = (
+      <VariantSlide
+        photo={photos[c.imageUrl!].photo}
+        backdrop={photos[c.imageUrl!].backdrop}
+        chips={c.chips}
+        productName={name}
+        price={shortPrice(c.price, c.currency)}
+        fromPrice={c.fromPrice}
+        unit={unit}
+      />
+    );
+    carousel.push(await renderSlide(slide));
+  }
+  carousel.push(await renderSlide(<ShopSlide headline={name} />));
+  return { post, carousel };
 }

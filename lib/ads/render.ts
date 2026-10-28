@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { ReactNode } from 'react';
 import satori from 'satori';
 import sharp from 'sharp';
-import { BODY, SERIF, SLIDE_HEIGHT, SLIDE_WIDTH } from './templates/shared';
+import { BODY, DISPLAY, SLIDE_HEIGHT, SLIDE_WIDTH } from './templates/shared';
 
 const FONT_DIR = path.join(process.cwd(), 'assets', 'fonts');
 
@@ -12,8 +12,8 @@ const FONT_DIR = path.join(process.cwd(), 'assets', 'fonts');
 let fonts: Parameters<typeof satori>[1]['fonts'] | null = null;
 function loadFonts() {
   fonts ??= [
-    { name: SERIF, weight: 600, style: 'normal', data: readFileSync(path.join(FONT_DIR, 'Fraunces-600.woff')) },
-    { name: SERIF, weight: 700, style: 'normal', data: readFileSync(path.join(FONT_DIR, 'Fraunces-700.woff')) },
+    { name: DISPLAY, weight: 800, style: 'normal', data: readFileSync(path.join(FONT_DIR, 'BarlowCondensed-ExtraBold.ttf')) },
+    { name: DISPLAY, weight: 900, style: 'normal', data: readFileSync(path.join(FONT_DIR, 'BarlowCondensed-Black.ttf')) },
     { name: BODY, weight: 500, style: 'normal', data: readFileSync(path.join(FONT_DIR, 'Barlow-Medium.ttf')) },
     { name: BODY, weight: 600, style: 'normal', data: readFileSync(path.join(FONT_DIR, 'Barlow-SemiBold.ttf')) },
   ];

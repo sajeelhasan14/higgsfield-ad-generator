@@ -46,3 +46,6 @@ next-env.d.ts
 
 # generated slides and AI pictures (lib/storage)
 /storage/
+
+# products.json pages saved from the store's website (npm run import:products-json)
+/imports/

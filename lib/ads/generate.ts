@@ -12,7 +12,7 @@ import type { Product, ProductWithVariants } from '@/lib/products/types';
 import { deleteFile, listFolder, readStoredFile, saveFile } from '@/lib/storage';
 import { buildCaption } from './caption';
 import { download, toDataUri } from './images';
-import { priceSignature, renderPost } from './post';
+import { priceSignature, renderAd } from './post';
 import { HERO_NEGATIVE_PROMPT, heroPrompt } from './prompts';
 import { getAd, markAdFailed, markAdReady, setHeroRequest } from './repository';
 import type { Ad } from './types';
@@ -32,7 +32,7 @@ export async function advanceGeneration(ad: Ad): Promise<void> {
   if (GENERATION_DRY_RUN) return finish(ad, product, await download(product.imageUrl));
 
   if (!ad.heroRequestId) {
-    const requestId = await submit(HIGGSFIELD_MODEL, heroRequest(product, product.imageUrl), idempotencyKey(ad));
+    const requestId = await submit(HIGGSFIELD_MODEL, heroRequest(product, product.imageUrl, variationOf(ad)), idempotencyKey(ad));
     return setHeroRequest(ad.id, requestId);
   }
 
@@ -46,17 +46,20 @@ export async function advanceGeneration(ad: Ad): Promise<void> {
 
 /**
  * The request for the ad picture: the model edits the product's real photo (Shopify's public CDN link).
- * 1:1 because the post shows the photo in a nearly square area above the panel.
+ * 3:4 because the photo fills the 4:5 post; the closest shape the model offers, so little is cut off.
  */
-export function heroRequest(product: Product, photoUrl: string) {
+export function heroRequest(product: Product, photoUrl: string, variation = 0) {
   return {
-    prompt: heroPrompt(product),
+    prompt: heroPrompt(product, variation),
     image_urls: [photoUrl],
     negative_prompt: HERO_NEGATIVE_PROMPT,
-    aspect_ratio: '1:1',
+    aspect_ratio: '3:4',
     resolution: '2k',
   };
 }
+
+/** A new ad, or a regenerated picture, moves on to the next look, so the same product gets a fresh picture each time. */
+const variationOf = (ad: Ad) => Number(ad.id) + ad.heroAttempt;
 
 /** The same ad and attempt always give the same key, so a repeated submit is never charged twice. */
 function idempotencyKey(ad: Ad): string {
@@ -81,13 +84,17 @@ async function finish(ad: Ad, product: ProductWithVariants, pictureBytes: Buffer
 }
 
 /**
- * Draws the post from the picture and today's product data, and saves image, caption and prices together.
- * The file name includes the time, so the browser never shows a cached older drawing.
+ * Draws the post (and the Instagram carousel, if any) from the picture and today's product data, and saves
+ * images, caption and prices together. Image 1 is the single post, the rest are the carousel slides.
+ * The file names include the time, so the browser never shows a cached older drawing.
  */
 async function renderAndSave(ad: Ad, product: ProductWithVariants, picture: Buffer): Promise<void> {
-  const key = await saveFile(`${attemptPrefix(ad)}-post-${Date.now()}.jpg`, await renderPost(product, await toDataUri(picture)));
-  await markAdReady(ad.id, [key], buildCaption(product), priceSignature(product));
-  for (const old of ad.images) if (old !== key) await deleteFile(old);
+  const { post, carousel } = await renderAd(product, await toDataUri(picture));
+  const stamp = Date.now();
+  const keys = [await saveFile(`${attemptPrefix(ad)}-post-${stamp}.jpg`, post)];
+  for (const [i, slide] of carousel.entries()) keys.push(await saveFile(`${attemptPrefix(ad)}-slide-${i + 1}-${stamp}.jpg`, slide));
+  await markAdReady(ad.id, keys, buildCaption(product), priceSignature(product));
+  for (const old of ad.images) if (!keys.includes(old)) await deleteFile(old);
 }
 
 /**
