@@ -42,7 +42,7 @@ async function Schedule() {
         ]}
       />
 
-      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[1fr_340px]">
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
         <section>
           <SectionTitle count={upcoming.length}>UPCOMING</SectionTitle>
           {upcoming.length === 0 ? (

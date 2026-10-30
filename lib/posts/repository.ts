@@ -65,6 +65,21 @@ export async function markPublished(postId: string, externalId: string): Promise
   );
 }
 
+export async function savePermalink(postId: string, permalink: string): Promise<void> {
+  await query(`UPDATE posts SET permalink = $2 WHERE id = $1`, [postId, permalink]);
+}
+
+/** Real published posts (not dry-run ones) that have no web address saved yet, newest first. */
+export async function listPostsWithoutPermalink(limit = 10): Promise<Post[]> {
+  return query<Post>(
+    `SELECT ${POST_COLUMNS} FROM posts
+     WHERE status = 'published' AND permalink IS NULL AND external_id IS NOT NULL AND external_id NOT LIKE 'dry-run-%'
+     ORDER BY published_at DESC
+     LIMIT $1`,
+    [limit],
+  );
+}
+
 /** A failed try: back to 'scheduled' with a later run_at (5 min, then 10 min), or 'failed' after the last attempt. */
 export async function markAttemptFailed(post: Post, error: string): Promise<void> {
   const giveUp = post.attempts >= MAX_ATTEMPTS;
@@ -99,7 +114,7 @@ export interface ScheduledAd {
   productTitle: string | null;
   firstSlide: string | null; // storage key of slide 1, for the thumbnail
   scheduledAt: Date;
-  posts: { platform: string; status: string; lastError: string | null; publishedAt: string | null }[]; // inside JSON, dates arrive as strings
+  posts: { platform: string; status: string; lastError: string | null; publishedAt: string | null; permalink: string | null }[]; // inside JSON, dates arrive as strings
 }
 
 // One row per ad with all its platform posts folded in. {filter} is replaced only with the fixed clauses below.
@@ -108,7 +123,7 @@ const SCHEDULE_SQL = `
          (SELECT image_url FROM ad_images WHERE ad_id = a.id AND position = 1) AS "firstSlide",
          min(s.scheduled_at) AS "scheduledAt",
          json_agg(json_build_object('platform', s.platform, 'status', s.status, 'lastError', s.last_error,
-                                    'publishedAt', s.published_at) ORDER BY s.platform) AS posts
+                                    'publishedAt', s.published_at, 'permalink', s.permalink) ORDER BY s.platform) AS posts
   FROM posts s
   JOIN ads a ON a.id = s.ad_id
   LEFT JOIN products p ON p.id = a.product_id

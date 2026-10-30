@@ -49,3 +49,6 @@ next-env.d.ts
 
 # products.json pages saved from the store's website (npm run import:products-json)
 /imports/
+
+# Personal Claude Code settings
+.claude/settings.local.json

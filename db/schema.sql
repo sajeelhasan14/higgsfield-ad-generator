@@ -86,6 +86,9 @@ CREATE TABLE IF NOT EXISTS posts (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (ad_id, platform, kind)
 );
+-- The post's web address (e.g. https://www.instagram.com/p/…), asked from Meta after publishing,
+-- because an Instagram address can't be built from external_id.
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS permalink TEXT NULL;
 
 -- The worker asks "which scheduled posts are due?" every 30 seconds; this index answers it quickly.
 CREATE INDEX IF NOT EXISTS posts_due_idx ON posts(status, run_at);

@@ -27,11 +27,19 @@ export function ScheduledAdRow({ item, canUnschedule }: { item: ScheduledAd; can
           {item.productTitle ?? 'Product no longer in the catalog'} · Ad #{item.adId}
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
-          {item.posts.map((p) => (
-            <span key={p.platform} title={p.lastError ?? undefined} className={`rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_PILL[p.status] ?? ''}`}>
-              {p.platform} · {p.status}
-            </span>
-          ))}
+          {item.posts.map((p) => {
+            const pill = `rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_PILL[p.status] ?? ''}`;
+            // A published post with a saved address opens on Instagram/Facebook in a new tab.
+            return p.permalink ? (
+              <a key={p.platform} href={p.permalink} target="_blank" rel="noopener noreferrer" title={`Open on ${p.platform}`} className={`${pill} hover:underline`}>
+                {p.platform} · {p.status} ↗
+              </a>
+            ) : (
+              <span key={p.platform} title={p.lastError ?? undefined} className={pill}>
+                {p.platform} · {p.status}
+              </span>
+            );
+          })}
         </div>
         {item.posts
           .filter((p) => p.lastError)

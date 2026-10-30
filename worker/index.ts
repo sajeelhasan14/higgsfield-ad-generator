@@ -3,6 +3,7 @@
 import { getPool } from '@/lib/db';
 import { GENERATION_DRY_RUN, PUBLISH_DRY_RUN } from '@/lib/config';
 import { checkPaidAds } from './tasks/check-paid-ads';
+import { fillPostLinks } from './tasks/fill-post-links';
 import { generateAds } from './tasks/generate-ads';
 import { publishDuePosts } from './tasks/publish-due-posts';
 import { syncProductsDaily } from './tasks/sync-products';
@@ -15,6 +16,7 @@ const tasks: { name: string; run: () => Promise<void> }[] = [
   { name: 'generate ads', run: generateAds },
   { name: 'daily Shopify sync', run: syncProductsDaily },
   { name: 'check paid ads', run: checkPaidAds },
+  { name: 'fill post links', run: fillPostLinks },
 ];
 
 let stopping = false;

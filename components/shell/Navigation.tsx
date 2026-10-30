@@ -14,6 +14,11 @@ const PAGES: { href: string; label: string; icon: IconName }[] = [
   { href: '/meta-ads', label: 'Meta Ads', icon: 'megaphone' },
 ];
 
+/** "Gym Flooring UK" → "GF": the first letters of the first two words. */
+function initials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
+}
+
 function useCurrentPage() {
   const pathname = usePathname();
   return PAGES.find((p) => pathname.startsWith(p.href));
@@ -77,7 +82,7 @@ export function Sidebar({ storeName }: { storeName: string }) {
       </nav>
 
       <div className="mt-auto flex items-center gap-3 rounded-2xl border border-line bg-white/60 p-3">
-        <div className="grid h-9 w-9 place-items-center rounded-lg bg-rail font-display text-sm font-bold text-white">PH</div>
+        <div className="grid h-9 w-9 place-items-center rounded-lg bg-rail font-display text-sm font-bold text-white">{initials(storeName)}</div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{storeName}</p>
           <p className="text-xs text-muted">Admin</p>

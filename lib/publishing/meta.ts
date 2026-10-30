@@ -90,6 +90,17 @@ async function waitUntilReady(containerId: string, token: string): Promise<void>
   }
 }
 
+/**
+ * The public web address of a published post, so people can open it from the Schedule page.
+ * Instagram calls the field "permalink", Facebook "permalink_url".
+ */
+export async function postPermalink(platform: 'instagram' | 'facebook', externalId: string): Promise<string | null> {
+  const token = await pageAccessToken();
+  const field = platform === 'instagram' ? 'permalink' : 'permalink_url';
+  const post = await graph<Record<string, string | undefined>>(externalId, { fields: field, access_token: token });
+  return post[field] ?? null;
+}
+
 /** A Facebook Page photo post: the image with the caption as its text, published straight away. */
 export async function postToFacebook(imageUrl: string, caption: string): Promise<string> {
   const settings = metaSettings();

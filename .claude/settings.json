@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh -i ~/.ssh/adstudio-vps -o IdentitiesOnly=yes publisher@50.6.203.155 *)"
+    ]
+  }
+}
