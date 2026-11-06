@@ -6,6 +6,8 @@ import { checkPaidAds } from './tasks/check-paid-ads';
 import { fillPostLinks } from './tasks/fill-post-links';
 import { generateAds } from './tasks/generate-ads';
 import { publishDuePosts } from './tasks/publish-due-posts';
+import { syncAdStatsHourly } from './tasks/sync-ad-stats';
+import { syncOrdersRegularly } from './tasks/sync-orders';
 import { syncProductsDaily } from './tasks/sync-products';
 
 const INTERVAL_MS = 10_000;
@@ -17,6 +19,8 @@ const tasks: { name: string; run: () => Promise<void> }[] = [
   { name: 'daily Shopify sync', run: syncProductsDaily },
   { name: 'check paid ads', run: checkPaidAds },
   { name: 'fill post links', run: fillPostLinks },
+  { name: 'sync orders', run: syncOrdersRegularly },
+  { name: 'sync ad stats', run: syncAdStatsHourly },
 ];
 
 let stopping = false;

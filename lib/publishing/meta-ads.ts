@@ -144,18 +144,21 @@ export interface MetaAdLive {
   clicks: number;
 }
 
-/** Status and results so far, for several promotions in two calls. Keyed by the Meta ad ID. */
+/** Status and results so far, for several promotions. Keyed by the Meta ad ID. */
 export async function readMetaAds(ads: { adId: string; campaignId: string }[]): Promise<Map<string, MetaAdLive>> {
   const result = new Map<string, MetaAdLive>();
   if (ads.length === 0) return result;
   const { accessToken, adAccountId } = metaAdsSettings();
 
-  // Several objects in one call: /?ids=a,b,c answers { a: {...}, b: {...} }.
-  const statuses = await graph<Record<string, { effective_status: string }>>('', {
-    ids: ads.map((a) => a.adId).join(','),
-    fields: 'effective_status',
-    access_token: accessToken,
-  });
+  // One read per ad, all at once: Graph API v26 removed the ?ids=a,b,c shortcut.
+  const statuses = new Map(
+    await Promise.all(
+      ads.map(async (a) => {
+        const ad = await graph<{ effective_status: string }>(a.adId, { fields: 'effective_status', access_token: accessToken });
+        return [a.adId, ad.effective_status] as const;
+      }),
+    ),
+  );
   const insights = await graph<{ data: { campaign_id: string; spend: string; impressions: string; clicks: string }[] }>(`${adAccountId}/insights`, {
     level: 'campaign',
     fields: 'campaign_id,spend,impressions,clicks',
@@ -168,11 +171,80 @@ export async function readMetaAds(ads: { adId: string; campaignId: string }[]): 
     // A campaign with no results yet has no insights row.
     const row = insights.data.find((d) => d.campaign_id === a.campaignId);
     result.set(a.adId, {
-      effectiveStatus: statuses[a.adId]?.effective_status ?? 'UNKNOWN',
+      effectiveStatus: statuses.get(a.adId) ?? 'UNKNOWN',
       spend: row?.spend ?? '0',
       impressions: Number(row?.impressions ?? 0),
       clicks: Number(row?.clicks ?? 0),
     });
   }
   return result;
+}
+
+export interface MetaAdDay {
+  metaAdId: string;
+  day: string; // "2026-11-06"
+  spend: string;
+  impressions: number;
+  linkClicks: number;
+  purchases: number; // what Meta counts through a Pixel; 0 without one
+  purchaseValue: string;
+}
+
+interface MetaAction {
+  action_type: string;
+  value: string;
+}
+
+/** Meta lists the same purchases under several names; omni_purchase is the combined one, so only one is read. */
+function purchaseAction(actions: MetaAction[] | undefined): string {
+  const find = (type: string) => actions?.find((a) => a.action_type === type)?.value;
+  return find('omni_purchase') ?? find('purchase') ?? '0';
+}
+
+interface InsightsPage {
+  data: {
+    ad_id: string;
+    date_start: string;
+    spend?: string;
+    impressions?: string;
+    inline_link_clicks?: string;
+    actions?: MetaAction[];
+    action_values?: MetaAction[];
+  }[];
+  paging?: { next?: string; cursors?: { after?: string } };
+}
+
+/** Results per ad per day between two days (both included). Days with no results have no row. */
+export async function readAdDailyStats(metaAdIds: string[], since: string, until: string): Promise<MetaAdDay[]> {
+  const { accessToken, adAccountId } = metaAdsSettings();
+  const days: MetaAdDay[] = [];
+  let after: string | undefined;
+
+  do {
+    const page: InsightsPage = await graph<InsightsPage>(`${adAccountId}/insights`, {
+      level: 'ad',
+      time_increment: '1', // one row per day
+      time_range: JSON.stringify({ since, until }),
+      fields: 'ad_id,spend,impressions,inline_link_clicks,actions,action_values',
+      filtering: JSON.stringify([{ field: 'ad.id', operator: 'IN', value: metaAdIds }]),
+      limit: '500',
+      ...(after ? { after } : {}),
+      access_token: accessToken,
+    });
+
+    for (const row of page.data) {
+      days.push({
+        metaAdId: row.ad_id,
+        day: row.date_start,
+        spend: row.spend ?? '0',
+        impressions: Number(row.impressions ?? 0),
+        linkClicks: Number(row.inline_link_clicks ?? 0),
+        purchases: Math.round(Number(purchaseAction(row.actions))),
+        purchaseValue: purchaseAction(row.action_values),
+      });
+    }
+    after = page.paging?.next ? page.paging.cursors?.after : undefined;
+  } while (after);
+
+  return days;
 }

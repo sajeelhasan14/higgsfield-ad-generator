@@ -12,7 +12,7 @@ export default function ProductsPage() {
   return (
     <div className="flex flex-col gap-8">
       {/* The page frame shows instantly; the numbers and the grid stream in once the database answers. */}
-      <Suspense fallback={<PageHeader eyebrow="Store · Catalog" title="Products" subtitle="Loading products…" actions={<SyncButton />} />}>
+      <Suspense fallback={<PageHeader title="Products" subtitle="Loading products…" actions={<SyncButton />} />}>
         <Products />
       </Suspense>
     </div>
@@ -47,7 +47,6 @@ async function Products() {
   return (
     <>
       <PageHeader
-        eyebrow="Store · Catalog"
         title="Products"
         subtitle={`${products.length.toLocaleString('en-GB')} products · ${variants.toLocaleString('en-GB')} variants · ${
           syncedAt ? `synced with Shopify ${syncedAt.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}` : 'not synced yet'

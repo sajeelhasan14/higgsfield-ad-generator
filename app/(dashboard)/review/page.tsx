@@ -10,7 +10,7 @@ import type { Ad } from '@/lib/ads/types';
 export default function ReviewPage() {
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader eyebrow="Studio · Review" title="Review" subtitle="check each ad · edit the caption · approve to schedule" />
+      <PageHeader title="Review" subtitle="check each ad · edit the caption · approve to schedule" />
       <Suspense fallback={<p className="text-sm text-muted">Loading ads…</p>}>
         <Ads />
       </Suspense>
@@ -46,9 +46,9 @@ async function Ads() {
         <div className="flex flex-col gap-10">
           {/* Only while something is generating: re-check every few seconds so finished ads appear by themselves. */}
           {generating.length > 0 && <AutoRefresh />}
-          <Section title="GENERATING" ads={generating} />
-          <Section title="READY FOR REVIEW" ads={by('ready')} />
-          <Section title="FAILED" ads={by('failed')} />
+          <Section title="Generating" ads={generating} />
+          <Section title="Ready for review" ads={by('ready')} />
+          <Section title="Failed" ads={by('failed')} />
         </div>
       )}
     </>

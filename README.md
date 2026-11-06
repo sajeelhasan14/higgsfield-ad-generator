@@ -8,10 +8,11 @@ Turns the Shopify products of **Plot And Harvest Co** into Instagram and Faceboo
 
 | Part | What it does | Code |
 |---|---|---|
-| Dashboard (Next.js) | Login, Products, Review, Schedule | `app/`, `components/` |
-| Worker (separate process) | Generates ads, posts due posts, syncs Shopify daily | `worker/` |
-| Database (PostgreSQL via `pg`) | Products, ads, posts, posting times | `db/schema.sql`, `lib/*/repository.ts` |
-| Shopify | Read-only product sync (never writes to the store) | `lib/shopify/` |
+| Dashboard (Next.js) | Login, Products, Review, Schedule, Meta Ads, Analytics | `app/`, `components/` |
+| Worker (separate process) | Generates ads, posts due posts, syncs Shopify daily, reads orders every 15 minutes and ad results hourly | `worker/` |
+| Database (PostgreSQL via `pg`) | Products, ads, posts, posting times, orders, daily ad results | `db/schema.sql`, `lib/*/repository.ts` |
+| Shopify | Read-only product and order sync (never writes to the store) | `lib/shopify/` |
+| Analytics | Matches orders to ads through the link tag `utm_campaign=adstudio-<ad id>`, which Shopify keeps with the order | `lib/analytics/` |
 | Higgsfield | Edits the real product photo into a new scene (`alibaba/qwen-image-3/edit`) | `lib/higgsfield/`, `lib/ads/` |
 | Meta Graph API | Posts one image + caption to Instagram and the Facebook Page | `lib/publishing/` |
 | Image files | Generated pictures and post images, in `storage/` | `lib/storage/` |

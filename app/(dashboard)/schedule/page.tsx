@@ -13,7 +13,7 @@ import { listSlots } from '@/lib/posts/slots';
 export default function SchedulePage() {
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader eyebrow="Studio · Schedule" title="Schedule" subtitle={`approved ads post at the next free time · ${POSTING_TIMEZONE}`} />
+      <PageHeader title="Schedule" subtitle={`approved ads post at the next free time · ${POSTING_TIMEZONE}`} />
       {PUBLISH_DRY_RUN && (
         <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Dry run: Instagram and Facebook are not connected yet, so &quot;published&quot; means the worker only logged it.
@@ -44,7 +44,7 @@ async function Schedule() {
 
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
         <section>
-          <SectionTitle count={upcoming.length}>UPCOMING</SectionTitle>
+          <SectionTitle count={upcoming.length}>Upcoming</SectionTitle>
           {upcoming.length === 0 ? (
             <EmptyState>Nothing scheduled. Approve an ad on the Review page.</EmptyState>
           ) : (
@@ -57,7 +57,7 @@ async function Schedule() {
 
           {history.length > 0 && (
             <div className="mt-10">
-              <SectionTitle count={history.length}>HISTORY</SectionTitle>
+              <SectionTitle count={history.length}>History</SectionTitle>
               <ul className="flex flex-col gap-3">
                 {history.map((item) => (
                   <ScheduledAdRow key={item.adId} item={item} canUnschedule={false} />
@@ -68,7 +68,7 @@ async function Schedule() {
         </section>
 
         <section className="h-fit rounded-2xl border border-line bg-surface p-5">
-          <SectionTitle>DAILY POSTING TIMES</SectionTitle>
+          <SectionTitle>Daily posting times</SectionTitle>
           <p className="-mt-2 mb-4 text-sm text-muted">Each approved ad takes the next free time, on Instagram and Facebook together.</p>
           <ul className="mb-4 flex flex-col gap-2">
             {slots.map((time) => (

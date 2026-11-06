@@ -12,13 +12,10 @@ export default function LoginPage() {
         <div className="mb-6 grid h-11 w-11 place-items-center rounded-xl bg-brand text-white">
           <Icon name="sparkle" />
         </div>
-        <p className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.18em] text-muted">
-          <span className="h-px w-5 bg-brand" /> AD STUDIO
-        </p>
-        <h1 className="mt-1 font-display text-4xl font-extrabold tracking-tight">
+        <h1 className="font-display text-4xl font-extrabold tracking-tight">
           Welcome back<span className="text-brand">.</span>
         </h1>
-        <p className="mb-6 mt-2 text-sm italic text-muted">sync · generate · schedule</p>
+        <p className="mb-6 mt-2 text-sm text-muted">sync · generate · schedule</p>
         <LoginForm />
       </div>
     </main>

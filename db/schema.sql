@@ -126,3 +126,53 @@ CREATE TABLE IF NOT EXISTS paid_ads (
 );
 
 CREATE INDEX IF NOT EXISTS paid_ads_ad_id_idx ON paid_ads(ad_id);
+
+-- Shopify orders, kept here because Shopify only lets us read about the last 60 days. id is Shopify's own ID,
+-- so reading an order again updates it (refunds, late visit details). No customer names or addresses are stored.
+-- total is what the order is worth now: after refunds, including VAT and delivery.
+-- ad_id is the ad that gets the credit: NULL when no visit carried one of our tags.
+CREATE TABLE IF NOT EXISTS orders (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,                          -- the number shown in Shopify, e.g. "#1042"
+  placed_at TIMESTAMPTZ NOT NULL,
+  currency TEXT NOT NULL,
+  total NUMERIC(12, 2) NOT NULL,
+  refunded NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  payment_status TEXT NULL,                    -- Shopify's value, e.g. PAID, PARTIALLY_REFUNDED
+  cancelled_at TIMESTAMPTZ NULL,
+  channel TEXT NOT NULL,                       -- where the customer came from, in words, e.g. "Google ads"
+  utm_campaign TEXT NULL,
+  ad_id BIGINT NULL REFERENCES ads(id) ON DELETE SET NULL,
+  credited_visit TEXT NULL CHECK (credited_visit IN ('last', 'first')),
+  synced_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS orders_placed_at_idx ON orders(placed_at);
+CREATE INDEX IF NOT EXISTS orders_ad_id_idx ON orders(ad_id);
+
+-- What was bought in each order, for "best products". product_id has no reference to products on purpose:
+-- an order must stay even if the product is later removed, and it may never have been synced.
+CREATE TABLE IF NOT EXISTS order_items (
+  order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  product_id TEXT NULL,
+  title TEXT NOT NULL,
+  quantity INTEGER NOT NULL,
+  amount NUMERIC(12, 2) NOT NULL,              -- after discounts
+  PRIMARY KEY (order_id, position)
+);
+
+-- Meta's numbers for one paid ad on one day (the ad account's day, UK time). Reading a day again replaces it,
+-- because Meta keeps adjusting recent days. meta_purchases stays 0 until a Pixel is connected to the ad account.
+CREATE TABLE IF NOT EXISTS ad_daily_stats (
+  paid_ad_id BIGINT NOT NULL REFERENCES paid_ads(id) ON DELETE CASCADE,
+  day DATE NOT NULL,
+  spend NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  impressions INTEGER NOT NULL DEFAULT 0,
+  link_clicks INTEGER NOT NULL DEFAULT 0,
+  meta_purchases INTEGER NOT NULL DEFAULT 0,
+  meta_revenue NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  PRIMARY KEY (paid_ad_id, day)
+);
+
+CREATE INDEX IF NOT EXISTS ad_daily_stats_day_idx ON ad_daily_stats(day);

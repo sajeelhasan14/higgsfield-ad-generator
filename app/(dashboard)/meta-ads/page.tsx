@@ -14,7 +14,7 @@ import { mediaUrl } from '@/lib/storage';
 export default function MetaAdsPage() {
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader eyebrow="Studio · Meta Ads" title="Meta Ads" subtitle="promote a finished ad · it is created switched off · you switch it on" />
+      <PageHeader title="Meta Ads" subtitle="promote a finished ad · it is created switched off · you switch it on" />
       {PUBLISH_DRY_RUN && (
         <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Dry run: nothing is sent to Meta and nothing is spent. Promotions are only saved here so the page can be tried.
@@ -60,7 +60,7 @@ async function MetaAds() {
       {error && <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">Meta: {error}</p>}
 
       <section>
-        <SectionTitle count={paid.length}>PAID ADS</SectionTitle>
+        <SectionTitle count={paid.length}>Paid ads</SectionTitle>
         {paid.length === 0 ? (
           <EmptyState>Nothing promoted yet. Pick an ad below and press Promote.</EmptyState>
         ) : (
@@ -73,7 +73,7 @@ async function MetaAds() {
       </section>
 
       <section>
-        <SectionTitle count={promotable.length}>PROMOTE AN AD</SectionTitle>
+        <SectionTitle count={promotable.length}>Promote an ad</SectionTitle>
         {promotable.length === 0 ? (
           <EmptyState>No finished ads. Generate one on the Products page first.</EmptyState>
         ) : (
