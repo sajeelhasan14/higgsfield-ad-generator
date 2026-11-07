@@ -22,7 +22,8 @@ const VARIANTS_QUERY = `
     productVariants(first: 100, after: $cursor) {
       pageInfo { hasNextPage endCursor }
       nodes {
-        id title sku price compareAtPrice position
+        id title sku price compareAtPrice position inventoryQuantity inventoryPolicy
+        inventoryItem { tracked unitCost { amount } }
         selectedOptions { name value }
         product { id }
         media(first: 1) { nodes { preview { image { url } } } }
@@ -56,6 +57,9 @@ interface ShopifyVariant {
   price: string;
   compareAtPrice: string | null;
   position: number;
+  inventoryQuantity: number | null;
+  inventoryPolicy: 'CONTINUE' | 'DENY';
+  inventoryItem: { tracked: boolean; unitCost: { amount: string } | null } | null;
   selectedOptions: { name: string; value: string }[];
   product: { id: string };
   media: { nodes: MediaImage[] };
@@ -75,11 +79,16 @@ async function fetchAllPages<Data, T>(queryText: string, pick: (data: Data) => P
 
 const imageUrl = (media: MediaImage): string | null => media?.preview?.image?.url ?? null;
 
+/** Can this variant be bought now? Only a tracked one that stops selling at zero can run out. */
+const canBuy = (v: ShopifyVariant) => !v.inventoryItem?.tracked || v.inventoryPolicy === 'CONTINUE' || (v.inventoryQuantity ?? 0) > 0;
+
 /** The full catalog: every product and every variant, already in the app's own format. */
 export async function fetchShopifyCatalog(): Promise<{ products: Product[]; variants: Variant[] }> {
   const { shop } = await shopifyGraphql<{ shop: { currencyCode: string } }>(SHOP_QUERY);
   const rawProducts = await fetchAllPages(PRODUCTS_QUERY, (d: { products: Page<ShopifyProduct> }) => d.products);
   const rawVariants = await fetchAllPages(VARIANTS_QUERY, (d: { productVariants: Page<ShopifyVariant> }) => d.productVariants);
+
+  const buyable = new Set(rawVariants.filter(canBuy).map((v) => v.product.id));
 
   const products: Product[] = rawProducts.map((p) => ({
     id: p.id,
@@ -91,6 +100,7 @@ export async function fetchShopifyCatalog(): Promise<{ products: Product[]; vari
     status: p.status,
     imageUrl: imageUrl(p.featuredMedia),
     shopifyUpdatedAt: p.updatedAt,
+    inStock: buyable.has(p.id),
   }));
 
   const variants: Variant[] = rawVariants.map((v) => ({
@@ -104,6 +114,7 @@ export async function fetchShopifyCatalog(): Promise<{ products: Product[]; vari
     options: v.selectedOptions,
     imageUrl: imageUrl(v.media.nodes[0] ?? null),
     position: v.position,
+    cost: v.inventoryItem?.unitCost?.amount ?? null,
   }));
 
   return { products, variants };

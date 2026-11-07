@@ -12,6 +12,39 @@ export const HIGGSFIELD_MODEL = process.env.HIGGSFIELD_MODEL || 'alibaba/qwen-im
 /** true: use the product's real Shopify photo as it is instead of calling Higgsfield, so testing costs nothing. */
 export const GENERATION_DRY_RUN = process.env.GENERATION_DRY_RUN === '1';
 
+/**
+ * How many ads the autopilot makes each week, which is also the limit on its AI image spending.
+ * Off (0) unless set, because each ad uses paid Higgsfield credits. At most 10, to catch a typo.
+ */
+export const AUTO_CREATE_ADS_PER_WEEK = Math.min(10, Math.max(0, Math.floor(Number(process.env.AUTO_CREATE_ADS_PER_WEEK) || 0)));
+
+/** The most the client will pay in ads to win one sale, in pounds. The advice on the Meta Ads page needs it; 0 means not set, so no advice is given. */
+export const MAX_AD_COST_PER_SALE = Math.max(0, Number(process.env.MAX_AD_COST_PER_SALE) || 0);
+
+/**
+ * How far the autopilot may go by itself. advice: only gives advice. pause: also pauses poor ads.
+ * full: also launches ads and raises budgets. Anything other than these means advice, so a typo can't spend money.
+ */
+export const AUTOPILOT_LEVEL: 'advice' | 'pause' | 'full' = process.env.AUTOPILOT_LEVEL === 'pause' || process.env.AUTOPILOT_LEVEL === 'full' ? process.env.AUTOPILOT_LEVEL : 'advice';
+
+/** true: in full mode, ads that passed the automatic check launch without a person approving them. Off by default. */
+export const AUTO_LAUNCH_WITHOUT_REVIEW = process.env.AUTO_LAUNCH_WITHOUT_REVIEW === '1';
+
+/** The automatic ad check runs only with a Claude key. */
+export const AD_CHECK_ENABLED = Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+
+/** VAT inside the store's prices, in percent. For real profit. */
+export const VAT_PERCENT = process.env.VAT_PERCENT ? Number(process.env.VAT_PERCENT) : 20;
+
+/** Profit as a percent of the price before VAT, used for items with no cost in Shopify. Unset means no guessing. */
+export const ROUGH_MARGIN_PERCENT = process.env.ROUGH_MARGIN_PERCENT ? Number(process.env.ROUGH_MARGIN_PERCENT) : null;
+
+/** Slack or Discord incoming webhook for alerts and the weekly report. */
+export const ALERT_WEBHOOK_URL = process.env.ALERT_WEBHOOK_URL?.trim() || null;
+
+/** A monitor (e.g. healthchecks.io) the worker pings hourly; it raises the alarm when the pings stop. */
+export const HEALTHCHECK_PING_URL = process.env.HEALTHCHECK_PING_URL?.trim() || null;
+
 /** Every platform the app can post to. */
 export const PLATFORMS = ['instagram', 'facebook'] as const;
 

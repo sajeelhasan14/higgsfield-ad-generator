@@ -4,6 +4,7 @@ import { PaidAdRow } from '@/components/meta-ads/PaidAdRow';
 import { PromoteForm } from '@/components/meta-ads/PromoteForm';
 import { EmptyState, PageHeader, SectionTitle, StatRow } from '@/components/shell/PageParts';
 import { listAdsByStatus } from '@/lib/ads/repository';
+import { listRecommendations } from '@/lib/autopilot/recommendations';
 import { PUBLISH_DRY_RUN } from '@/lib/config';
 import { formatPrice } from '@/lib/format';
 import { BUDGET_LIMITS } from '@/lib/paid-ads/promote';
@@ -39,7 +40,7 @@ async function readLive(paid: PaidAd[]): Promise<{ live: Map<string, MetaAdLive>
 
 async function MetaAds() {
   await connection(); // always fresh from the database and Meta
-  const [paid, promotable] = await Promise.all([listPaidAds(), listAdsByStatus(['ready', 'approved'])]);
+  const [paid, promotable, advice] = await Promise.all([listPaidAds(), listAdsByStatus(['ready', 'approved']), listRecommendations()]);
   const { live, error } = await readLive(paid);
   const adAccount = process.env.META_AD_ACCOUNT_ID?.trim().replace(/^act_/, '') || null;
 
@@ -66,7 +67,7 @@ async function MetaAds() {
         ) : (
           <ul className="flex flex-col gap-3">
             {paid.map((p) => (
-              <PaidAdRow key={p.id} paid={p} live={p.metaAdId ? live.get(p.metaAdId) : undefined} adAccount={adAccount} />
+              <PaidAdRow key={p.id} paid={p} live={p.metaAdId ? live.get(p.metaAdId) : undefined} adAccount={adAccount} advice={advice.get(p.id)} />
             ))}
           </ul>
         )}

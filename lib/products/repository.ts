@@ -21,25 +21,25 @@ export async function replaceCatalog(products: Product[], variants: Variant[]): 
 
 async function upsertProduct(client: PoolClient, p: Product) {
   await client.query(
-    `INSERT INTO products (id, title, handle, description, vendor, product_type, status, image_url, shopify_updated_at, synced_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+    `INSERT INTO products (id, title, handle, description, vendor, product_type, status, image_url, shopify_updated_at, in_stock, synced_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
      ON CONFLICT (id) DO UPDATE SET
        title = EXCLUDED.title, handle = EXCLUDED.handle, description = EXCLUDED.description,
        vendor = EXCLUDED.vendor, product_type = EXCLUDED.product_type, status = EXCLUDED.status,
-       image_url = EXCLUDED.image_url, shopify_updated_at = EXCLUDED.shopify_updated_at, synced_at = now()`,
-    [p.id, p.title, p.handle, p.description, p.vendor, p.productType, p.status, p.imageUrl, p.shopifyUpdatedAt],
+       image_url = EXCLUDED.image_url, shopify_updated_at = EXCLUDED.shopify_updated_at, in_stock = EXCLUDED.in_stock, synced_at = now()`,
+    [p.id, p.title, p.handle, p.description, p.vendor, p.productType, p.status, p.imageUrl, p.shopifyUpdatedAt, p.inStock],
   );
 }
 
 async function upsertVariant(client: PoolClient, v: Variant) {
   await client.query(
-    `INSERT INTO variants (id, product_id, title, sku, price, compare_at_price, currency, options, image_url, position, synced_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
+    `INSERT INTO variants (id, product_id, title, sku, price, compare_at_price, currency, options, image_url, position, cost, synced_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())
      ON CONFLICT (id) DO UPDATE SET
        product_id = EXCLUDED.product_id, title = EXCLUDED.title, sku = EXCLUDED.sku, price = EXCLUDED.price,
        compare_at_price = EXCLUDED.compare_at_price, currency = EXCLUDED.currency, options = EXCLUDED.options,
-       image_url = EXCLUDED.image_url, position = EXCLUDED.position, synced_at = now()`,
-    [v.id, v.productId, v.title, v.sku, v.price, v.compareAtPrice, v.currency, JSON.stringify(v.options), v.imageUrl, v.position],
+       image_url = EXCLUDED.image_url, position = EXCLUDED.position, cost = EXCLUDED.cost, synced_at = now()`,
+    [v.id, v.productId, v.title, v.sku, v.price, v.compareAtPrice, v.currency, JSON.stringify(v.options), v.imageUrl, v.position, v.cost],
   );
 }
 
@@ -49,12 +49,12 @@ async function upsertVariant(client: PoolClient, v: Variant) {
 const PRODUCTS_WITH_VARIANTS_SQL = `
   SELECT p.id, p.title, p.handle, p.description, p.vendor,
          p.product_type AS "productType", p.status, p.image_url AS "imageUrl",
-         p.shopify_updated_at AS "shopifyUpdatedAt",
+         p.shopify_updated_at AS "shopifyUpdatedAt", p.in_stock AS "inStock",
          COALESCE(
            json_agg(json_build_object(
              'id', v.id, 'productId', v.product_id, 'title', v.title, 'sku', v.sku,
              'price', v.price::text, 'compareAtPrice', v.compare_at_price::text, 'currency', v.currency,
-             'options', v.options, 'imageUrl', v.image_url, 'position', v.position
+             'options', v.options, 'imageUrl', v.image_url, 'position', v.position, 'cost', v.cost::text
            ) ORDER BY v.position) FILTER (WHERE v.id IS NOT NULL),
            '[]'
          ) AS variants

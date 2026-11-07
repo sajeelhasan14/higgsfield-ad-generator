@@ -1,4 +1,5 @@
 import { claimDuePosts, failStuckPosts, markAttemptFailed, markPublished } from '@/lib/posts/repository';
+import { isPaused } from '@/lib/autopilot/state';
 import { PUBLISH_DRY_RUN } from '@/lib/config';
 import { publishPost } from '@/lib/publishing';
 import { savePostLink } from './fill-post-links';
@@ -7,6 +8,9 @@ import { savePostLink } from './fill-post-links';
 export async function publishDuePosts(): Promise<void> {
   const stuck = await failStuckPosts();
   if (stuck) console.warn(`${stuck} post(s) were left half-published and are now marked failed`);
+
+  // Pause everything holds posts back; ones that came due go out after Resume.
+  if (await isPaused()) return;
 
   for (const post of await claimDuePosts()) {
     try {

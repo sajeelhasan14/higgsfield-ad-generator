@@ -49,6 +49,9 @@ export function AdCard({ ad }: { ad: Ad }) {
             <p className="text-xs text-muted">
               Ad #{ad.id} · created {ad.createdAt.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
             </p>
+            {ad.autoReason && <p className="mt-1 text-xs text-muted">Chosen by autopilot: {ad.autoReason}</p>}
+            {ad.checkStatus === 'passed' && <p className="mt-1 text-xs text-teal-700">Automatic check passed</p>}
+            {ad.checkStatus === 'failed' && <p className="mt-1 text-xs text-red-600">Automatic check found a problem: {ad.checkNotes}</p>}
           </div>
           <span className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${STATUS_PILL[ad.status] ?? ''}`}>
             <span className="h-1.5 w-1.5 rounded-full bg-current" /> {ad.status.charAt(0).toUpperCase() + ad.status.slice(1)}

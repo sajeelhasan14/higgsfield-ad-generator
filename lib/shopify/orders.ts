@@ -10,6 +10,7 @@ export interface OrderVisit {
 
 export interface ShopifyOrderItem {
   productId: string | null; // null when the product no longer exists
+  variantId: string | null;
   title: string;
   quantity: number;
   amount: string;
@@ -45,7 +46,7 @@ interface RawOrder {
   totalRefundedSet: { shopMoney: { amount: string } };
   customerJourneySummary: { firstVisit: RawVisit | null; lastVisit: RawVisit | null } | null;
   lineItems: {
-    nodes: { title: string; quantity: number; product: { id: string } | null; discountedTotalSet: { shopMoney: { amount: string } } }[];
+    nodes: { title: string; quantity: number; product: { id: string } | null; variant: { id: string } | null; discountedTotalSet: { shopMoney: { amount: string } } }[];
   };
 }
 
@@ -56,7 +57,7 @@ interface OrdersPage {
 // Small pages, because Shopify refuses a query whose orders × line items adds up to too high a "cost".
 const ORDERS_QUERY = `
   query Orders($after: String) {
-    orders(first: 20, after: $after, sortKey: CREATED_AT, reverse: true) {
+    orders(first: 10, after: $after, sortKey: CREATED_AT, reverse: true) {
       pageInfo { hasNextPage endCursor }
       nodes {
         id name createdAt test cancelledAt displayFinancialStatus
@@ -67,7 +68,7 @@ const ORDERS_QUERY = `
           lastVisit { source utmParameters { source medium campaign } }
         }
         lineItems(first: 25) {
-          nodes { title quantity product { id } discountedTotalSet { shopMoney { amount } } }
+          nodes { title quantity product { id } variant { id } discountedTotalSet { shopMoney { amount } } }
         }
       }
     }
@@ -97,6 +98,7 @@ function toOrder(raw: RawOrder): ShopifyOrder {
     lastVisit: toVisit(raw.customerJourneySummary?.lastVisit),
     items: raw.lineItems.nodes.map((item) => ({
       productId: item.product?.id ?? null,
+      variantId: item.variant?.id ?? null,
       title: item.title,
       quantity: item.quantity,
       amount: item.discountedTotalSet.shopMoney.amount,

@@ -19,4 +19,11 @@ export interface Ad {
   images: string[];
   /** When it will be posted, once approved (the same moment on every platform). */
   scheduledAt: Date | null;
+  /** Why the autopilot chose this product; null for an ad a person started. */
+  autoReason: string | null;
+  /** The photo style used; null until the picture is requested. */
+  look: number | null;
+  /** The automatic ad check: null until it has run. */
+  checkStatus: 'passed' | 'failed' | null;
+  checkNotes: string | null;
 }

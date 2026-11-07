@@ -61,6 +61,10 @@ export async function getPaidAd(id: string): Promise<PaidAd | null> {
   return row ?? null;
 }
 
+export async function setPaidAdBudget(id: string, dailyBudget: number): Promise<void> {
+  await query(`UPDATE paid_ads SET daily_budget = $2 WHERE id = $1`, [id, dailyBudget]);
+}
+
 /** Switching on clears any old pause reason; endsAt is only given the first time it is switched on. */
 export async function setPaidAdStatus(id: string, status: PaidAd['status'], extra: { endsAt?: Date; pausedReason?: string } = {}): Promise<void> {
   await query(

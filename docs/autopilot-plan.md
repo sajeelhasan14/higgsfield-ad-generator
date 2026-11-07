@@ -2,7 +2,7 @@
 
 **Client:** Gym Flooring UK
 **Written:** 6 November 2026
-**Status:** Plan only. Nothing in this document has been built yet, except where it says so.
+**Status:** All stages were built on 7 November 2026, and anything that acts on money by itself is switched off. See section 10.
 
 ## 1. The goal
 
@@ -25,7 +25,7 @@ We are building an **autopilot with limits**, not a system with no controls. It 
 | Read spend and clicks per ad from Meta | Built, not yet proven on a real ad with results |
 | Analytics page | Done |
 | Meta Pixel | Not connected to the ad account as of 6 November 2026 |
-| Product costs | Not read yet. We don't know if they are filled in on Shopify |
+| Product costs | Empty on Shopify: 0 of 137 variants on the 16 active products have a cost (checked 7 November 2026) |
 
 ## 3. How the autopilot works
 
@@ -69,7 +69,7 @@ These figures are examples, not the client's real numbers.
 | Sales, refunds, products sold | Shopify orders | Available |
 | Which ad made the sale | Link tag saved with the Shopify order | Available |
 | Spend, clicks, times shown | Meta ad reports | Available |
-| Product cost | Shopify's "Cost per item" box, a list from the client, or a rough margin | To check |
+| Product cost | Shopify's "Cost per item" box, a list from the client, or a rough margin | Needed from the client |
 | Stock levels | Shopify | Not read yet |
 | Add-to-carts and checkouts | Meta Pixel | Not available until the Pixel is connected |
 
@@ -96,16 +96,29 @@ Each stage is safe to run on its own. The risky ones come last.
 - Commit the code to git.
 - Prove one real click and order through an ad.
 - Connect the Meta Pixel.
-- Check how many products have a cost in Shopify.
+- Get product costs or a rough margin from the client.
 - Get the answers in section 8.
 
 ### Stage 2: Auto-create
 
 The app chooses products and makes ads each week. A person approves them with one click. This spends no ad money, but AI images cost Higgsfield credits.
 
+**Built on 7 November 2026, switched off until `AUTO_CREATE_ADS_PER_WEEK` is set on the server.** Products are ranked by sales in the last 60 days, and a product is skipped for 28 days after its last ad. Stock and profit are not used yet.
+
 ### Stage 3: Recommendations
 
 The app says "pause this" or "increase that", with its reason. A person clicks to accept. This shows whether its judgment is good before it acts by itself.
+
+**Built on 7 November 2026. It gives no advice until `MAX_AD_COST_PER_SALE` is set on the server.** Advice appears on each running ad on the Meta Ads page, and each Accept or Not now is saved in `autopilot_log`.
+
+| Advice | When |
+|---|---|
+| Wait | The ad has no orders and has spent less than the limit per sale |
+| Pause | It has spent the limit with no orders, or its cost per sale is above the limit |
+| Raise by 20% | It has 2 or more orders at half the limit or better, had no rise in the last 3 days, and there is room under £20 a day |
+| Keep | Anything else |
+
+Not now hides advice for 7 days. The 20%, 3-day and 7-day values are starting numbers, and are set in `lib/autopilot/rules.ts`.
 
 ### Stage 4: Auto-pause
 
@@ -119,12 +132,12 @@ The app launches ads and changes budgets by itself, within the limits in section
 
 New ads use what has worked before, by product type and ad angle.
 
-**Build stages 1 to 3 now.** Stages 4 to 6 wait until the recommendations have proved reliable on real results.
+**Stages 4 to 6 are built but must stay switched off** until the recommendations have proved reliable on real results and the client has agreed in writing.
 
 ## 6. Limits that always apply
 
-- A monthly and a daily spending limit the app cannot exceed.
-- A limit on AI image spending.
+- A monthly and a daily spending limit the app cannot exceed. The daily limit is built: running ads can total at most £20 a day in their budgets. Meta can spend more than a budget on a single day, and ads switched on in Ads Manager are not counted.
+- A limit on AI image spending. Built for the autopilot: `AUTO_CREATE_ADS_PER_WEEK`. Regenerating a picture by hand is not limited.
 - One **Pause everything** button.
 - Small, spaced-out budget increases, because big changes can disrupt how Meta delivers an ad.
 - No judgment until an ad has enough data.
@@ -156,17 +169,37 @@ New ads use what has worked before, by product type and ad angle.
 
 | # | Question | From |
 |---|---|---|
-| 1 | What is the monthly ad budget? | Client |
+| 1 | ~~What is the monthly ad budget?~~ Decided on 7 November 2026: £20 a day, about £600 a month | Done |
 | 2 | What is the most they would pay in ads to get one sale? | Client |
 | 3 | Do they agree to automatic spending, in writing? | Client |
 | 4 | Should a person review ads before they go live? We recommend yes at first | Client and team |
-| 5 | Are product costs in Shopify, or will they give a list or rough margin? | Client |
+| 5 | Product costs are empty on Shopify. Will they fill them in, send a list, or give a rough margin? | Client |
 | 6 | Will they connect the Meta Pixel, and does the store have a working cookie banner? | Client |
 
 ## 9. Next steps
 
-1. Confirm the latest update is live on the server.
-2. Check that ad #2 has started spending.
-3. Run a read-only check of product costs in Shopify.
-4. Ask the client the questions in section 8.
-5. Start Stage 2.
+1. Ask the client the remaining questions in section 8.
+2. Deploy Stages 2 and 3, and set `AUTO_CREATE_ADS_PER_WEEK` and `MAX_AD_COST_PER_SALE`.
+3. Find out why ad #2 spent so far below its budget.
+4. Read stock from Shopify, so the autopilot skips products that are out of stock.
+5. Review the accepted and declined advice before moving `AUTOPILOT_LEVEL` past `advice`.
+
+## 10. What is built
+
+| Part | Where | Needs before it works |
+|---|---|---|
+| Weekly ads (Stage 2) | `worker/tasks/auto-create-ads.ts` | `AUTO_CREATE_ADS_PER_WEEK` |
+| Advice (Stage 3) | `lib/autopilot/rules.ts`, Meta Ads page | `MAX_AD_COST_PER_SALE` |
+| Auto-pause (Stage 4) | `lib/autopilot/act.ts` | `AUTOPILOT_LEVEL=pause` and the client's written OK |
+| Auto-launch and budgets (Stage 5) | `lib/autopilot/act.ts` | `AUTOPILOT_LEVEL=full` and the client's written OK |
+| Learning (Stage 6) | `lib/autopilot/learn.ts` | Real results from paid ads |
+| Automatic ad check | `lib/ads/check.ts` | `ANTHROPIC_API_KEY` |
+| Pause everything, log, report | `/autopilot` page | Nothing |
+| Daily and monthly limits | `BUDGET_LIMITS` in `lib/paid-ads/promote.ts` | Nothing: £20 a day, £600 a month |
+| Real profit | `lib/analytics/profit.ts` | Product costs or `ROUGH_MARGIN_PERCENT` |
+| Stock check | `lib/shopify/products.ts` | The client turning on stock tracking: all 137 variants are untracked |
+| Alerts and weekly report | `lib/autopilot/alerts.ts` | `ALERT_WEBHOOK_URL` |
+| Worker monitor | `worker/tasks/run-autopilot.ts` | `HEALTHCHECK_PING_URL` |
+| Off-site backups | `deploy/pull-backup.sh` | Running it from a laptop |
+
+Not built: the "Later" ideas in section 7, and purchase-goal ads, which need the Pixel. Ads still aim for clicks.

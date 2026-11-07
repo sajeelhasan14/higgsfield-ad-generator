@@ -19,6 +19,9 @@ const SHOTS = [
   'close shot with a softly blurred background, cool morning light',
 ];
 
+/** How many photo styles there are. A "look" is one of them, stored on the ad so the autopilot can learn which sell. */
+export const LOOK_COUNT = SHOTS.length;
+
 function placesIn(description: string): string[] {
   const text = description.toLowerCase();
   return PLACES.filter((place) => text.includes(place.toLowerCase()));

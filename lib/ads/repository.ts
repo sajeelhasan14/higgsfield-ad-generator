@@ -6,7 +6,9 @@ const AD_SELECT = `
   SELECT a.id, a.product_id AS "productId", p.title AS "productTitle", a.status, a.caption,
          a.hero_request_id AS "heroRequestId", a.hero_attempt AS "heroAttempt", a.error, a.price_signature AS "priceSignature", a.created_at AS "createdAt",
          COALESCE((SELECT array_agg(i.image_url ORDER BY i.position) FROM ad_images i WHERE i.ad_id = a.id), '{}') AS images,
-         (SELECT min(s.scheduled_at) FROM posts s WHERE s.ad_id = a.id AND s.status <> 'cancelled') AS "scheduledAt"
+         (SELECT min(s.scheduled_at) FROM posts s WHERE s.ad_id = a.id AND s.status <> 'cancelled') AS "scheduledAt",
+         (SELECT l.reason FROM autopilot_log l WHERE l.ad_id = a.id AND l.action = 'auto-create' LIMIT 1) AS "autoReason",
+         a.look, a.check_status AS "checkStatus", a.check_notes AS "checkNotes"
   FROM ads a
   LEFT JOIN products p ON p.id = a.product_id`;
 
@@ -39,8 +41,17 @@ export async function listAdsToGenerate(limit = 5): Promise<Ad[]> {
   return query<Ad>(`${AD_SELECT} WHERE a.status = 'generating' ORDER BY a.created_at LIMIT $1`, [limit]);
 }
 
-export async function setHeroRequest(adId: string, requestId: string): Promise<void> {
-  await query(`UPDATE ads SET hero_request_id = $2 WHERE id = $1 AND status = 'generating'`, [adId, requestId]);
+export async function setHeroRequest(adId: string, requestId: string, look: number): Promise<void> {
+  await query(`UPDATE ads SET hero_request_id = $2, look = $3 WHERE id = $1 AND status = 'generating'`, [adId, requestId, look]);
+}
+
+/** Finished ads the automatic check hasn't seen yet. A few at a time, because each check is a paid call. */
+export async function listAdsToCheck(limit = 3): Promise<Ad[]> {
+  return query<Ad>(`${AD_SELECT} WHERE a.status IN ('ready', 'approved') AND a.check_status IS NULL ORDER BY a.created_at LIMIT $1`, [limit]);
+}
+
+export async function saveAdCheck(adId: string, passed: boolean, notes: string): Promise<void> {
+  await query(`UPDATE ads SET check_status = $2, check_notes = $3 WHERE id = $1`, [adId, passed ? 'passed' : 'failed', notes]);
 }
 
 /** Saves the finished image, caption and the prices it shows, and moves the ad to 'ready' for review. */
@@ -50,7 +61,7 @@ export async function markAdReady(adId: string, imageKeys: string[], caption: st
     for (const [i, key] of imageKeys.entries()) {
       await client.query('INSERT INTO ad_images (ad_id, position, image_url) VALUES ($1, $2, $3)', [adId, i + 1, key]);
     }
-    await client.query(`UPDATE ads SET status = 'ready', caption = $2, price_signature = $3, error = NULL WHERE id = $1`, [adId, caption, priceSignature]);
+    await client.query(`UPDATE ads SET status = 'ready', caption = $2, price_signature = $3, error = NULL, check_status = NULL, check_notes = NULL WHERE id = $1`, [adId, caption, priceSignature]);
   });
 }
 
@@ -69,7 +80,7 @@ export async function requeueAd(adId: string): Promise<void> {
 }
 
 export async function updateCaption(adId: string, caption: string): Promise<void> {
-  await query(`UPDATE ads SET caption = $2 WHERE id = $1 AND status IN ('ready', 'approved')`, [adId, caption]);
+  await query(`UPDATE ads SET caption = $2, check_status = NULL, check_notes = NULL WHERE id = $1 AND status IN ('ready', 'approved')`, [adId, caption]);
 }
 
 /** Un-schedules an approved ad: its posts are cancelled and it goes back to 'ready'. */

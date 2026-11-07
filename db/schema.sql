@@ -176,3 +176,35 @@ CREATE TABLE IF NOT EXISTS ad_daily_stats (
 );
 
 CREATE INDEX IF NOT EXISTS ad_daily_stats_day_idx ON ad_daily_stats(day);
+
+-- Everything the autopilot did, and why. ad_id and product_id have no reference on purpose: a row must stay after
+-- its ad is deleted, otherwise deleting an ad would look like the week's images were never made, and the
+-- worker would pay for new ones straight away.
+CREATE TABLE IF NOT EXISTS autopilot_log (
+  id BIGSERIAL PRIMARY KEY,
+  action TEXT NOT NULL,                        -- e.g. 'auto-create'
+  ad_id BIGINT NULL,
+  product_id TEXT NULL,
+  reason TEXT NOT NULL,                        -- in plain words, shown on the Review page
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- The paid ad a person accepted or turned down advice for ('accept-pause', 'accept-increase', 'not-now-…').
+ALTER TABLE autopilot_log ADD COLUMN IF NOT EXISTS paid_ad_id BIGINT NULL;
+
+-- Facts that must survive a restart: 'paused' (Pause everything) and 'worker_seen'.
+CREATE TABLE IF NOT EXISTS app_state (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+-- false only when Shopify tracks stock and nothing can be sold. Untracked stock counts as available.
+ALTER TABLE products ADD COLUMN IF NOT EXISTS in_stock BOOLEAN NOT NULL DEFAULT true;
+-- Shopify's "Cost per item", for real profit. NULL when the client has not filled it in.
+ALTER TABLE variants ADD COLUMN IF NOT EXISTS cost NUMERIC(12, 2) NULL;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS variant_id TEXT NULL;
+
+-- Which photo style the ad used (lib/ads/prompts.ts), so the autopilot can learn which sell.
+ALTER TABLE ads ADD COLUMN IF NOT EXISTS look INTEGER NULL;
+-- The automatic ad check: NULL until checked, then 'passed' or 'failed'. check_notes says what is wrong.
+ALTER TABLE ads ADD COLUMN IF NOT EXISTS check_status TEXT NULL CHECK (check_status IN ('passed', 'failed'));
+ALTER TABLE ads ADD COLUMN IF NOT EXISTS check_notes TEXT NULL;

@@ -87,6 +87,7 @@ async function main() {
       status: 'ACTIVE', // products.json only lists products that are live on the online store
       imageUrl: [...p.images].sort((a, b) => a.position - b.position)[0]?.src ?? null,
       shopifyUpdatedAt: p.updated_at,
+      inStock: true, // products.json has no stock levels
     });
     for (const v of p.variants) {
       const values = [v.option1, v.option2, v.option3];
@@ -101,6 +102,7 @@ async function main() {
         options: optionNames.flatMap((name, i) => (values[i] ? [{ name, value: values[i] }] : [])),
         imageUrl: v.featured_image?.src ?? null,
         position: v.position,
+        cost: null,
       });
     }
   }

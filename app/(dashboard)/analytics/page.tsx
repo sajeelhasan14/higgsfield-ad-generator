@@ -54,7 +54,7 @@ async function Results({ searchParams }: { searchParams: Search }) {
   const asked = Number((await searchParams).days);
   const days = RANGES.includes(asked) ? asked : DEFAULT_RANGE;
 
-  const { summary, previous, daily, ads, products, channels, recentOrders, lastSynced } = await getDashboard(days);
+  const { summary, previous, daily, ads, products, channels, recentOrders, lastSynced, profit } = await getDashboard(days);
   const { currency, spend, adRevenue, adOrders, storeRevenue, impressions, linkClicks } = summary;
   const money = (amount: number | null) => (amount === null ? '—' : formatPrice(String(amount), currency));
 
@@ -77,6 +77,13 @@ async function Results({ searchParams }: { searchParams: Search }) {
           { label: 'Orders from ads', value: adOrders, note: changeNote(adOrders, previous.adOrders, days) },
         ]}
       />
+
+      <p className="rounded-2xl border border-line bg-surface p-4 text-sm">
+        <span className="font-semibold">Profit from ads: {profit === null ? 'needs product costs' : money(profit)}.</span>{' '}
+        <span className="text-muted">
+          {profit === null ? 'Fill in Cost per item on Shopify, or set a rough margin, to see this.' : 'After VAT, product costs and ad spend. Delivery is left out.'}
+        </span>
+      </p>
 
       {hasAdResults ? (
         <>

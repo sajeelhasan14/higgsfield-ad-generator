@@ -13,6 +13,7 @@ const PAGES: { href: string; label: string; icon: IconName }[] = [
   { href: '/schedule', label: 'Schedule', icon: 'schedule' },
   { href: '/meta-ads', label: 'Meta Ads', icon: 'megaphone' },
   { href: '/analytics', label: 'Analytics', icon: 'chart' },
+  { href: '/autopilot', label: 'Autopilot', icon: 'sparkle' },
 ];
 
 /** "Gym Flooring UK" → "GF": the first letters of the first two words. */

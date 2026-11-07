@@ -13,7 +13,7 @@ import { deleteFile, listFolder, readStoredFile, saveFile } from '@/lib/storage'
 import { buildCaption } from './caption';
 import { download, toDataUri } from './images';
 import { priceSignature, renderAd } from './post';
-import { HERO_NEGATIVE_PROMPT, heroPrompt } from './prompts';
+import { HERO_NEGATIVE_PROMPT, heroPrompt, LOOK_COUNT } from './prompts';
 import { getAd, markAdFailed, markAdReady, setHeroRequest } from './repository';
 import type { Ad } from './types';
 
@@ -32,8 +32,9 @@ export async function advanceGeneration(ad: Ad): Promise<void> {
   if (GENERATION_DRY_RUN) return finish(ad, product, await download(product.imageUrl));
 
   if (!ad.heroRequestId) {
-    const requestId = await submit(HIGGSFIELD_MODEL, heroRequest(product, product.imageUrl, variationOf(ad)), idempotencyKey(ad));
-    return setHeroRequest(ad.id, requestId);
+    const variation = variationOf(ad);
+    const requestId = await submit(HIGGSFIELD_MODEL, heroRequest(product, product.imageUrl, variation), idempotencyKey(ad));
+    return setHeroRequest(ad.id, requestId, variation % LOOK_COUNT);
   }
 
   const res = await getStatus(ad.heroRequestId);
@@ -58,8 +59,11 @@ export function heroRequest(product: Product, photoUrl: string, variation = 0) {
   };
 }
 
-/** A new ad, or a regenerated picture, moves on to the next look, so the same product gets a fresh picture each time. */
-const variationOf = (ad: Ad) => Number(ad.id) + ad.heroAttempt;
+/**
+ * A new ad, or a regenerated picture, moves on to the next look, so the same product gets a fresh picture each time.
+ * An ad the autopilot made starts from the look it chose.
+ */
+const variationOf = (ad: Ad) => (ad.look ?? Number(ad.id)) + ad.heroAttempt;
 
 /** The same ad and attempt always give the same key, so a repeated submit is never charged twice. */
 function idempotencyKey(ad: Ad): string {

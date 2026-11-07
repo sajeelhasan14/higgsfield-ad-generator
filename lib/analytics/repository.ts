@@ -1,10 +1,11 @@
 // All SQL for the Analytics page: saving orders and Meta's daily numbers, and adding them up.
 // Nothing here talks to Shopify or Meta.
-import { POSTING_TIMEZONE } from '@/lib/config';
+import { POSTING_TIMEZONE, ROUGH_MARGIN_PERCENT, VAT_PERCENT } from '@/lib/config';
 import { query, withTransaction } from '@/lib/db';
 import type { MetaAdDay } from '@/lib/publishing/meta-ads';
 import type { ShopifyOrder } from '@/lib/shopify/orders';
 import type { Credit } from './attribution';
+import { profitFromAds, type SoldItem } from './profit';
 
 export async function listAdIds(): Promise<Set<string>> {
   const rows = await query<{ id: string }>(`SELECT id FROM ads`);
@@ -31,8 +32,8 @@ export async function saveOrder(order: ShopifyOrder, credit: Credit | null, chan
     await client.query(`DELETE FROM order_items WHERE order_id = $1`, [order.id]);
     for (const [position, item] of order.items.entries()) {
       await client.query(
-        `INSERT INTO order_items (order_id, position, product_id, title, quantity, amount) VALUES ($1, $2, $3, $4, $5, $6)`,
-        [order.id, position, item.productId, item.title, item.quantity, item.amount],
+        `INSERT INTO order_items (order_id, position, product_id, variant_id, title, quantity, amount) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [order.id, position, item.productId, item.variantId, item.title, item.quantity, item.amount],
       );
     }
   });
@@ -119,6 +120,8 @@ export interface Dashboard {
   channels: ChannelResult[];
   recentOrders: CreditedOrder[];
   lastSynced: Date | null;
+  /** After VAT, product costs and ad spend. Null while product costs are missing. */
+  profit: number | null;
 }
 
 // Every query below takes $1 = number of days, $2 = timezone. "Today" counts as one of the days.
@@ -132,7 +135,7 @@ const COUNTED_ORDER = `${REAL_SALE} AND o.placed_at >= (${FROM_DAY} AT TIME ZONE
 export async function getDashboard(days: number): Promise<Dashboard> {
   const params = [days, POSTING_TIMEZONE];
 
-  const [[summary], [previous], daily, ads, products, channels, recentOrders, [{ lastSynced }]] = await Promise.all([
+  const [[summary], [previous], daily, ads, products, channels, recentOrders, [{ lastSynced }], soldItems] = await Promise.all([
     query<Summary>(
       `WITH meta AS (
          SELECT COALESCE(SUM(spend), 0)::float8 AS spend, COALESCE(SUM(impressions), 0)::int AS impressions,
@@ -213,7 +216,14 @@ export async function getDashboard(days: number): Promise<Dashboard> {
       params,
     ),
     query<{ lastSynced: Date | null }>(`SELECT MAX(synced_at) AS "lastSynced" FROM orders`),
+    query<SoldItem>(
+      `SELECT i.amount::float8 AS amount, i.quantity, v.cost::float8 AS "unitCost", o.total::float8 AS "orderTotal", o.refunded::float8 AS "orderRefunded"
+       FROM order_items i JOIN orders o ON o.id = i.order_id LEFT JOIN variants v ON v.id = i.variant_id
+       WHERE o.ad_id IS NOT NULL AND ${COUNTED_ORDER}`,
+      params,
+    ),
   ]);
 
-  return { summary, previous, daily, ads, products, channels, recentOrders, lastSynced };
+  const profit = profitFromAds(soldItems, summary.spend, { vatPercent: VAT_PERCENT, roughMarginPercent: ROUGH_MARGIN_PERCENT });
+  return { summary, previous, daily, ads, products, channels, recentOrders, lastSynced, profit };
 }

@@ -18,6 +18,8 @@ export interface Product {
   status: ProductStatus;
   imageUrl: string | null;
   shopifyUpdatedAt: string;
+  /** False only when Shopify tracks stock and nothing can be bought. */
+  inStock: boolean;
 }
 
 export interface Variant {
@@ -32,6 +34,8 @@ export interface Variant {
   options: VariantOption[];
   imageUrl: string | null;
   position: number;
+  /** Shopify's "Cost per item"; null when not filled in. */
+  cost: string | null;
 }
 
 export interface ProductWithVariants extends Product {

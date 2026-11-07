@@ -1,16 +1,18 @@
 // Turning a finished ad into a paid Meta ad, and switching it on and off. The same checks as posting run
 // first (product still Active, prices unchanged), so a paid ad never shows a wrong price either.
 import { BRAND } from '@/lib/ads/brand';
+import { spentThisMonth } from '@/lib/autopilot/repository';
+import { isPaused } from '@/lib/autopilot/state';
 import { getAd } from '@/lib/ads/repository';
 import { shortName } from '@/lib/ads/text';
 import { PUBLISH_DRY_RUN } from '@/lib/config';
 import { checkStillTrue } from '@/lib/publishing';
-import { adAccountCurrency, createMetaAd, setAdsetEnd, setCampaignStatus } from '@/lib/publishing/meta-ads';
+import { adAccountCurrency, createMetaAd, setAdsetBudget, setAdsetEnd, setCampaignStatus } from '@/lib/publishing/meta-ads';
 import { readStoredFile } from '@/lib/storage';
-import { getPaidAd, insertPaidAd, listActivePaidAds, setPaidAdStatus } from './repository';
+import { getPaidAd, insertPaidAd, listActivePaidAds, setPaidAdBudget, setPaidAdStatus, type PaidAd } from './repository';
 
-// Limits that catch a typo (500 instead of 5) before it costs money. Raise them here if the client wants more.
-export const BUDGET_LIMITS = { minDaily: 1, maxDaily: 100, minDays: 1, maxDays: 30 };
+// maxDaily is the agreed budget (£20 a day), for one ad and for all running ads together. Change it here if the budget changes.
+export const BUDGET_LIMITS = { minDaily: 1, maxDaily: 20, maxMonthly: 600, minDays: 1, maxDays: 30 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -50,6 +52,15 @@ export async function promoteAd(adId: string, dailyBudget: number, days: number)
   return insertPaidAd({ adId: ad.id, dailyBudget, currency, days, link, ids });
 }
 
+/** Changes a running ad's daily budget, on Meta first, so our number never shows a budget Meta refused. */
+export async function raisePaidAdBudget(id: string, dailyBudget: number): Promise<void> {
+  const paid = await getPaidAd(id);
+  if (!paid) throw new Error('This paid ad does not exist');
+  if (dailyBudget > BUDGET_LIMITS.maxDaily) throw new Error(`The daily budget can be at most ${BUDGET_LIMITS.maxDaily}`);
+  if (paid.adsetId) await setAdsetBudget(paid.adsetId, Math.round(dailyBudget * 100));
+  await setPaidAdBudget(id, dailyBudget);
+}
+
 /** Switches a paid ad on (spending starts once Meta has approved it) or off. */
 export async function switchPaidAd(id: string, on: boolean): Promise<string> {
   const paid = await getPaidAd(id);
@@ -62,6 +73,15 @@ export async function switchPaidAd(id: string, on: boolean): Promise<string> {
   }
 
   if (paid.endsAt && paid.endsAt.getTime() < Date.now()) throw new Error('This paid ad has finished its days. Promote the ad again for a new run.');
+
+  if (await isPaused()) throw new Error('Pause everything is on. Press Resume on the Autopilot page first.');
+  if ((await spentThisMonth()) >= BUDGET_LIMITS.maxMonthly) throw new Error(`The monthly limit of £${BUDGET_LIMITS.maxMonthly} is reached.`);
+
+  // Finished ads stay 'active' in our table but no longer spend, so they don't count.
+  const running = (await listActivePaidAds()).filter((other) => !other.finished && other.id !== id);
+  const total = running.reduce((sum, other) => sum + Number(other.dailyBudget), Number(paid.dailyBudget));
+  if (total > BUDGET_LIMITS.maxDaily) throw new Error(`This would make £${total} a day in total, over the £${BUDGET_LIMITS.maxDaily} limit. Switch another ad off first.`);
+
   const ad = await getAd(paid.adId);
   if (!ad) throw new Error('The ad no longer exists');
   await checkStillTrue(ad);
@@ -76,6 +96,13 @@ export async function switchPaidAd(id: string, on: boolean): Promise<string> {
   return paid.campaignId ? 'Switched on. It runs once Meta has reviewed it.' : 'Switched on (dry run: nothing sent to Meta)';
 }
 
+/** Switches an ad off by itself, keeping the reason to show on the Meta Ads page. */
+export async function pausePaidAd(paid: PaidAd, reason: string): Promise<void> {
+  if (paid.campaignId) await setCampaignStatus(paid.campaignId, 'PAUSED');
+  await setPaidAdStatus(paid.id, 'paused', { pausedReason: reason });
+  console.log(`Paid ad ${paid.id} switched off: ${reason}`);
+}
+
 /**
  * Switches off every running paid ad that is no longer true (product not Active, prices changed).
  * Run by the worker; the reason is shown on the Meta Ads page.
@@ -85,8 +112,6 @@ export async function pauseOutdatedPaidAds(): Promise<void> {
     const ad = await getAd(paid.adId);
     const problem = ad ? await checkStillTrue(ad).then(() => null, (err: Error) => err.message) : 'The ad no longer exists';
     if (!problem) continue;
-    if (paid.campaignId) await setCampaignStatus(paid.campaignId, 'PAUSED');
-    await setPaidAdStatus(paid.id, 'paused', { pausedReason: problem });
-    console.log(`Paid ad ${paid.id} switched off: ${problem}`);
+    await pausePaidAd(paid, problem);
   }
 }

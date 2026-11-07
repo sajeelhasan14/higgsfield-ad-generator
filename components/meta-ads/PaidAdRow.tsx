@@ -1,10 +1,12 @@
 // One promotion on the Meta Ads page: what it is, its budget, Meta's status and results, and the on/off switch.
 import { switchPaidAdAction } from '@/app/(dashboard)/meta-ads/actions';
 import { ActionButton } from '@/components/ActionButton';
+import type { Recommendation } from '@/lib/autopilot/rules';
 import { formatPrice, formatSlotTime } from '@/lib/format';
 import type { PaidAd } from '@/lib/paid-ads/repository';
 import type { MetaAdLive } from '@/lib/publishing/meta-ads';
 import { mediaUrl } from '@/lib/storage';
+import { RecommendationBox } from './RecommendationBox';
 
 // Meta's effective_status in plain words; anything not listed is shown as Meta sends it.
 const META_STATUS: Record<string, { label: string; pill: string }> = {
@@ -24,9 +26,11 @@ interface Props {
   live: MetaAdLive | undefined;
   /** The ad account number, for the "Open in Ads Manager" link; null when not set. */
   adAccount: string | null;
+  /** Only running ads have advice. */
+  advice: Recommendation | undefined;
 }
 
-export function PaidAdRow({ paid, live, adAccount }: Props) {
+export function PaidAdRow({ paid, live, adAccount, advice }: Props) {
   const { finished } = paid;
   const metaStatus = live && META_STATUS[live.effectiveStatus];
   const budget = formatPrice(paid.dailyBudget, paid.currency);
@@ -64,6 +68,7 @@ export function PaidAdRow({ paid, live, adAccount }: Props) {
           )}
         </div>
         {paid.pausedReason && <p className="mt-1 text-xs text-red-600">Switched off automatically: {paid.pausedReason}</p>}
+        {advice && <RecommendationBox paidAdId={paid.id} advice={advice} />}
       </div>
 
       <div className="flex flex-wrap items-start gap-2">

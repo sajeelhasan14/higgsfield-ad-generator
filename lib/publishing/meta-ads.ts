@@ -130,6 +130,12 @@ export async function setCampaignStatus(campaignId: string, status: 'ACTIVE' | '
   await graph(campaignId, { status, access_token: accessToken }, 'POST');
 }
 
+/** Changes the ad set's daily budget, in the currency's smallest unit (pence for GBP). */
+export async function setAdsetBudget(adsetId: string, dailyBudgetMinor: number): Promise<void> {
+  const { accessToken } = metaAdsSettings();
+  await graph(adsetId, { daily_budget: String(dailyBudgetMinor), access_token: accessToken }, 'POST');
+}
+
 /** Moves the ad set's end date, e.g. to "now + days" when it is first switched on. */
 export async function setAdsetEnd(adsetId: string, endsAt: Date): Promise<void> {
   const { accessToken } = metaAdsSettings();

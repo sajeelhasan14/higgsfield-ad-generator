@@ -2,10 +2,14 @@
 // Start it with: npm run worker
 import { getPool } from '@/lib/db';
 import { GENERATION_DRY_RUN, PUBLISH_DRY_RUN } from '@/lib/config';
+import { sendAlert } from '@/lib/autopilot/alerts';
+import { autoCreateAdsWeekly } from './tasks/auto-create-ads';
+import { checkFinishedAds } from './tasks/check-ads';
 import { checkPaidAds } from './tasks/check-paid-ads';
 import { fillPostLinks } from './tasks/fill-post-links';
 import { generateAds } from './tasks/generate-ads';
 import { publishDuePosts } from './tasks/publish-due-posts';
+import { autopilotTick } from './tasks/run-autopilot';
 import { syncAdStatsHourly } from './tasks/sync-ad-stats';
 import { syncOrdersRegularly } from './tasks/sync-orders';
 import { syncProductsDaily } from './tasks/sync-products';
@@ -21,6 +25,9 @@ const tasks: { name: string; run: () => Promise<void> }[] = [
   { name: 'fill post links', run: fillPostLinks },
   { name: 'sync orders', run: syncOrdersRegularly },
   { name: 'sync ad stats', run: syncAdStatsHourly },
+  { name: 'auto-create ads', run: autoCreateAdsWeekly },
+  { name: 'check finished ads', run: checkFinishedAds },
+  { name: 'autopilot', run: autopilotTick },
 ];
 
 let stopping = false;
@@ -33,6 +40,8 @@ async function tick() {
     } catch (err) {
       // One failing task (e.g. database briefly down) must not stop the worker; it tries again next tick.
       console.error(`Task "${task.name}" failed:`, err);
+      // An alert needs the database, which may be the very thing that is down.
+      await sendAlert(`task-${task.name}`, `The task "${task.name}" failed: ${err instanceof Error ? err.message : err}`).catch(() => {});
     }
   }
 }

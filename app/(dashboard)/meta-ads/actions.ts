@@ -4,6 +4,7 @@
 import { refresh } from 'next/cache';
 import { toResult, type ActionResult } from '@/lib/action-result';
 import { requireLogin } from '@/lib/auth';
+import { acceptRecommendation, notNowRecommendation } from '@/lib/autopilot/recommendations';
 import { promoteAd, switchPaidAd } from '@/lib/paid-ads/promote';
 
 function idFrom(formData: FormData, name: string): string {
@@ -25,6 +26,24 @@ export async function switchPaidAdAction(_prev: ActionResult, formData: FormData
   await requireLogin(); // before toResult, whose catch would swallow the redirect
   return toResult(async () => {
     const message = await switchPaidAd(idFrom(formData, 'paidAdId'), formData.get('on') === '1');
+    refresh();
+    return message;
+  });
+}
+
+export async function acceptRecommendationAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  await requireLogin(); // before toResult, whose catch would swallow the redirect
+  return toResult(async () => {
+    const message = await acceptRecommendation(idFrom(formData, 'paidAdId'), String(formData.get('kind')));
+    refresh();
+    return message;
+  });
+}
+
+export async function notNowRecommendationAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  await requireLogin(); // before toResult, whose catch would swallow the redirect
+  return toResult(async () => {
+    const message = await notNowRecommendation(idFrom(formData, 'paidAdId'), String(formData.get('kind')));
     refresh();
     return message;
   });
