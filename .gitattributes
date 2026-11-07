@@ -1,0 +1,2 @@
+# These files run on the Linux server, where Windows line endings break them (the nightly backup failed that way).
+deploy/** text eol=lf

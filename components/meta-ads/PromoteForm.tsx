@@ -11,7 +11,7 @@ interface Props {
 
 export function PromoteForm({ adId, limits }: Props) {
   const [result, action, pending] = useActionState(promoteAction, null);
-  const [budget, setBudget] = useState(limits.maxDaily);
+  const [budget, setBudget] = useState(5);
   const [days, setDays] = useState(7);
   const maxSpend = (budget * days).toFixed(2);
 

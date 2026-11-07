@@ -177,6 +177,11 @@ CREATE TABLE IF NOT EXISTS ad_daily_stats (
 
 CREATE INDEX IF NOT EXISTS ad_daily_stats_day_idx ON ad_daily_stats(day);
 
+-- What people did after clicking this ad, from the Meta Pixel. Counted per ad, so other sites on the same Pixel don't get in.
+ALTER TABLE ad_daily_stats ADD COLUMN IF NOT EXISTS landing_views INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE ad_daily_stats ADD COLUMN IF NOT EXISTS add_to_carts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE ad_daily_stats ADD COLUMN IF NOT EXISTS checkouts INTEGER NOT NULL DEFAULT 0;
+
 -- Everything the autopilot did, and why. ad_id and product_id have no reference on purpose: a row must stay after
 -- its ad is deleted, otherwise deleting an ad would look like the week's images were never made, and the
 -- worker would pay for new ones straight away.
@@ -208,3 +213,16 @@ ALTER TABLE ads ADD COLUMN IF NOT EXISTS look INTEGER NULL;
 -- The automatic ad check: NULL until checked, then 'passed' or 'failed'. check_notes says what is wrong.
 ALTER TABLE ads ADD COLUMN IF NOT EXISTS check_status TEXT NULL CHECK (check_status IN ('passed', 'failed'));
 ALTER TABLE ads ADD COLUMN IF NOT EXISTS check_notes TEXT NULL;
+-- true once a brand-new ad has used its one automatic retry after a failed check.
+ALTER TABLE ads ADD COLUMN IF NOT EXISTS check_retried BOOLEAN NOT NULL DEFAULT false;
+-- The caption's selling angle (lib/ads/angles.ts) and the opening the AI wrote for it. NULL when the plain template was used.
+ALTER TABLE ads ADD COLUMN IF NOT EXISTS angle TEXT NULL;
+ALTER TABLE ads ADD COLUMN IF NOT EXISTS caption_intro TEXT NULL;
+
+-- Caption angles the AI suggested from real results. Only 'approved' ones are ever used.
+CREATE TABLE IF NOT EXISTS ad_ideas (
+  id BIGSERIAL PRIMARY KEY,
+  idea TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'approved', 'dismissed')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

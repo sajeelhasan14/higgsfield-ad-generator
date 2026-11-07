@@ -13,7 +13,8 @@ function productTypeTag(productType: string): string | null {
   return tag && tag.length <= 24 ? `#${tag}` : null;
 }
 
-export function buildCaption(product: ProductWithVariants): string {
+/** intro replaces the description excerpt, when the AI wrote an opening for this ad's angle. */
+export function buildCaption(product: ProductWithVariants, intro?: string | null): string {
   const { variants } = product;
   const lead = leadVariant(variants);
   const from = hasFromPrice(variants) ? 'from ' : '';
@@ -28,12 +29,12 @@ export function buildCaption(product: ProductWithVariants): string {
   // A single variant's price is already in the first line.
   const optionList = variants.length > 1 ? ['', ...lines] : [];
 
-  const intro = excerpt(product.description, 220);
+  const opening = intro || excerpt(product.description, 220);
   const hashtags = [productTypeTag(product.productType), ...BRAND.hashtags].filter((t, i, all) => t && all.indexOf(t) === i);
 
   return [
     `${shortName(product.title)} – ${from}${formatPrice(lead.price, lead.currency)}${unit ? ` ${unit}` : ''}`,
-    ...(intro ? ['', intro] : []),
+    ...(opening ? ['', opening] : []),
     ...optionList,
     '',
     `Shop at ${BRAND.website} (link in bio).`,

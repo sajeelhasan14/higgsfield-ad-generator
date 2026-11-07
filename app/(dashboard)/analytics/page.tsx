@@ -55,7 +55,7 @@ async function Results({ searchParams }: { searchParams: Search }) {
   const days = RANGES.includes(asked) ? asked : DEFAULT_RANGE;
 
   const { summary, previous, daily, ads, products, channels, recentOrders, lastSynced, profit } = await getDashboard(days);
-  const { currency, spend, adRevenue, adOrders, storeRevenue, impressions, linkClicks } = summary;
+  const { currency, spend, adRevenue, adOrders, storeRevenue, impressions, linkClicks, landingViews, addToCarts, checkouts } = summary;
   const money = (amount: number | null) => (amount === null ? '—' : formatPrice(String(amount), currency));
 
   const perPound = ratio(adRevenue, spend);
@@ -96,7 +96,7 @@ async function Results({ searchParams }: { searchParams: Search }) {
 
           <section>
             <SectionTitle>From seeing the ad to buying</SectionTitle>
-            <FunnelSteps shown={impressions} clicks={linkClicks} orders={adOrders} />
+            <FunnelSteps shown={impressions} clicks={linkClicks} landingViews={landingViews} addToCarts={addToCarts} checkouts={checkouts} orders={adOrders} />
           </section>
 
           <section>

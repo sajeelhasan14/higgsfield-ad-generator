@@ -103,19 +103,19 @@ Each stage is safe to run on its own. The risky ones come last.
 
 The app chooses products and makes ads each week. A person approves them with one click. This spends no ad money, but AI images cost Higgsfield credits.
 
-**Built on 7 November 2026, switched off until `AUTO_CREATE_ADS_PER_WEEK` is set on the server.** Products are ranked by sales in the last 60 days, and a product is skipped for 28 days after its last ad. Stock and profit are not used yet.
+**Built on 7 November 2026, switched off until `AUTO_CREATE_ADS_PER_WEEK` is set on the server.** Most ads go to the best sellers of the last 60 days. One in every 3 tests the lowest seller with something priced at £30 or more, so slow products get a chance to grow. A product is skipped for 28 days after its last ad. Stock is used once the client tracks it. Profit is not used yet.
 
 ### Stage 3: Recommendations
 
 The app says "pause this" or "increase that", with its reason. A person clicks to accept. This shows whether its judgment is good before it acts by itself.
 
-**Built on 7 November 2026. It gives no advice until `MAX_AD_COST_PER_SALE` is set on the server.** Advice appears on each running ad on the Meta Ads page, and each Accept or Not now is saved in `autopilot_log`.
+**Built on 7 November 2026. It gives no advice until the limit per sale is set on the Autopilot page.** Advice appears on each running ad on the Meta Ads page, and each Accept or Not now is saved in `autopilot_log`.
 
 | Advice | When |
 |---|---|
 | Wait | The ad has no orders and has spent less than the limit per sale |
 | Pause | It has spent the limit with no orders, or its cost per sale is above the limit |
-| Raise by 20% | It has 2 or more orders at half the limit or better, had no rise in the last 3 days, and there is room under £20 a day |
+| Raise by 20% | It has 2 or more orders at half the limit or better, had no rise in the last 3 days, and its budget is under £100 a day |
 | Keep | Anything else |
 
 Not now hides advice for 7 days. The 20%, 3-day and 7-day values are starting numbers, and are set in `lib/autopilot/rules.ts`.
@@ -136,7 +136,7 @@ New ads use what has worked before, by product type and ad angle.
 
 ## 6. Limits that always apply
 
-- A monthly and a daily spending limit the app cannot exceed. The daily limit is built: running ads can total at most £20 a day in their budgets. Meta can spend more than a budget on a single day, and ads switched on in Ads Manager are not counted.
+- ~~A monthly and a daily spending limit the app cannot exceed.~~ Removed on 7 November 2026 by decision. Each ad has only the budget chosen when promoting it, so nothing limits total spend. The full mode should not be used without one.
 - A limit on AI image spending. Built for the autopilot: `AUTO_CREATE_ADS_PER_WEEK`. Regenerating a picture by hand is not limited.
 - One **Pause everything** button.
 - Small, spaced-out budget increases, because big changes can disrupt how Meta delivers an ad.
@@ -169,7 +169,7 @@ New ads use what has worked before, by product type and ad angle.
 
 | # | Question | From |
 |---|---|---|
-| 1 | ~~What is the monthly ad budget?~~ Decided on 7 November 2026: £20 a day, about £600 a month | Done |
+| 1 | ~~What is the ad budget?~~ Decided on 7 November 2026: chosen for each ad when promoting it, £1 to £100 a day. No total limit | Done |
 | 2 | What is the most they would pay in ads to get one sale? | Client |
 | 3 | Do they agree to automatic spending, in writing? | Client |
 | 4 | Should a person review ads before they go live? We recommend yes at first | Client and team |
@@ -179,7 +179,7 @@ New ads use what has worked before, by product type and ad angle.
 ## 9. Next steps
 
 1. Ask the client the remaining questions in section 8.
-2. Deploy Stages 2 and 3, and set `AUTO_CREATE_ADS_PER_WEEK` and `MAX_AD_COST_PER_SALE`.
+2. Deploy, and set Weekly ads and the limit per sale on the Autopilot page.
 3. Find out why ad #2 spent so far below its budget.
 4. Read stock from Shopify, so the autopilot skips products that are out of stock.
 5. Review the accepted and declined advice before moving `AUTOPILOT_LEVEL` past `advice`.
@@ -189,17 +189,22 @@ New ads use what has worked before, by product type and ad angle.
 | Part | Where | Needs before it works |
 |---|---|---|
 | Weekly ads (Stage 2) | `worker/tasks/auto-create-ads.ts` | `AUTO_CREATE_ADS_PER_WEEK` |
-| Advice (Stage 3) | `lib/autopilot/rules.ts`, Meta Ads page | `MAX_AD_COST_PER_SALE` |
+| Advice (Stage 3) | `lib/autopilot/rules.ts`, Meta Ads page | The limit per sale, on the Autopilot page |
 | Auto-pause (Stage 4) | `lib/autopilot/act.ts` | `AUTOPILOT_LEVEL=pause` and the client's written OK |
 | Auto-launch and budgets (Stage 5) | `lib/autopilot/act.ts` | `AUTOPILOT_LEVEL=full` and the client's written OK |
+| Automatic posting | `worker/tasks/auto-post-ads.ts` | Auto-post set to On on the Autopilot page. Only ads the autopilot made that passed the check |
 | Learning (Stage 6) | `lib/autopilot/learn.ts` | Real results from paid ads |
-| Automatic ad check | `lib/ads/check.ts` | `ANTHROPIC_API_KEY` |
+| Automatic ad check. A brand-new ad that fails gets one new picture. An ad older than a day, or scheduled, posted or promoted, is only labelled | `lib/ads/check.ts`, `worker/tasks/check-ads.ts` | `OPENAI_API_KEY` |
+| AI caption angles | `lib/ads/angles.ts` | `OPENAI_API_KEY` |
+| Weekly explanation and ad ideas | `lib/autopilot/insights.ts` | `OPENAI_API_KEY`, and real spend. Ideas also need real sales |
 | Pause everything, log, report | `/autopilot` page | Nothing |
-| Daily and monthly limits | `BUDGET_LIMITS` in `lib/paid-ads/promote.ts` | Nothing: £20 a day, £600 a month |
+| Budget for each ad | The Promote form on the Meta Ads page | Chosen per ad, £1 to £100 a day. Auto-launch uses £20 |
+| After-click steps: page views, add to cart, checkout | Analytics page, overall and per ad | The Pixel linked to the ad account. Counted per ad by Meta |
 | Real profit | `lib/analytics/profit.ts` | Product costs or `ROUGH_MARGIN_PERCENT` |
 | Stock check | `lib/shopify/products.ts` | The client turning on stock tracking: all 137 variants are untracked |
-| Alerts and weekly report | `lib/autopilot/alerts.ts` | `ALERT_WEBHOOK_URL` |
-| Worker monitor | `worker/tasks/run-autopilot.ts` | `HEALTHCHECK_PING_URL` |
+| Alerts, worker status and 7-day report | `/autopilot` page | Nothing. They show in the app only, so someone must open the page |
 | Off-site backups | `deploy/pull-backup.sh` | Running it from a laptop |
+
+Mode (`AUTOPILOT_LEVEL`), weekly ads and the limit per sale are set on the Autopilot page, saved in the database, and override the server values named above. Secret keys stay in the server file.
 
 Not built: the "Later" ideas in section 7, and purchase-goal ads, which need the Pixel. Ads still aim for clicks.

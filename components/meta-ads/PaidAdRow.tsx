@@ -1,6 +1,8 @@
 // One promotion on the Meta Ads page: what it is, its budget, Meta's status and results, and the on/off switch.
 import { switchPaidAdAction } from '@/app/(dashboard)/meta-ads/actions';
 import { ActionButton } from '@/components/ActionButton';
+import { AdPreview } from '@/components/ads/AdPreview';
+import { PAID_AD_LABEL } from '@/lib/ads/destinations';
 import type { Recommendation } from '@/lib/autopilot/rules';
 import { formatPrice, formatSlotTime } from '@/lib/format';
 import type { PaidAd } from '@/lib/paid-ads/repository';
@@ -38,8 +40,7 @@ export function PaidAdRow({ paid, live, adAccount, advice }: Props) {
   return (
     <li className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-4 sm:flex-row sm:items-center">
       {paid.image ? (
-        // eslint-disable-next-line @next/next/no-img-element -- our own JPEG thumbnail
-        <img src={mediaUrl(paid.image)} alt="" className="h-24 w-20 shrink-0 rounded-lg border border-line object-cover" />
+        <AdPreview images={[mediaUrl(paid.image)]} labels={[PAID_AD_LABEL]} title={paid.productTitle ?? 'Ad'} className="h-24 w-20 rounded-lg border border-line object-cover" />
       ) : (
         <div className="h-24 w-20 shrink-0 rounded-lg bg-stone-200" />
       )}

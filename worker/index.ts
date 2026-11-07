@@ -4,6 +4,7 @@ import { getPool } from '@/lib/db';
 import { GENERATION_DRY_RUN, PUBLISH_DRY_RUN } from '@/lib/config';
 import { sendAlert } from '@/lib/autopilot/alerts';
 import { autoCreateAdsWeekly } from './tasks/auto-create-ads';
+import { autoPostAds } from './tasks/auto-post-ads';
 import { checkFinishedAds } from './tasks/check-ads';
 import { checkPaidAds } from './tasks/check-paid-ads';
 import { fillPostLinks } from './tasks/fill-post-links';
@@ -27,6 +28,7 @@ const tasks: { name: string; run: () => Promise<void> }[] = [
   { name: 'sync ad stats', run: syncAdStatsHourly },
   { name: 'auto-create ads', run: autoCreateAdsWeekly },
   { name: 'check finished ads', run: checkFinishedAds },
+  { name: 'auto-post ads', run: autoPostAds },
   { name: 'autopilot', run: autopilotTick },
 ];
 

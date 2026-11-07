@@ -26,4 +26,7 @@ export interface Ad {
   /** The automatic ad check: null until it has run. */
   checkStatus: 'passed' | 'failed' | null;
   checkNotes: string | null;
+  /** The caption's selling angle, and the opening the AI wrote for it; null with the plain template. */
+  angle: string | null;
+  captionIntro: string | null;
 }

@@ -1,9 +1,18 @@
-// The frame around every dashboard page: sidebar, and a top bar that says when the app is in a test mode.
+// The frame around every dashboard page: sidebar, and a top bar that only speaks up when the app is in a test mode.
 import { Breadcrumb, MobileNav, Sidebar } from '@/components/shell/Navigation';
 import { BRAND } from '@/lib/ads/brand';
 import { GENERATION_DRY_RUN, PUBLISH_DRY_RUN } from '@/lib/config';
 
+/** Live is the normal state, so it says nothing; the details are in Setup on the Autopilot page. */
+function testModeNote(): string | null {
+  if (GENERATION_DRY_RUN && PUBLISH_DRY_RUN) return 'Test mode: no paid AI images, nothing is posted';
+  if (GENERATION_DRY_RUN) return 'Test mode: no paid AI images';
+  if (PUBLISH_DRY_RUN) return 'Test mode: nothing is posted';
+  return null;
+}
+
 export default function DashboardLayout({ children }: LayoutProps<'/'>) {
+  const testMode = testModeNote();
   return (
     <div className="flex min-h-screen">
       <Sidebar storeName={BRAND.name} />
@@ -17,27 +26,10 @@ export default function DashboardLayout({ children }: LayoutProps<'/'>) {
               <Breadcrumb />
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Tells you at a glance whether a click can cost money or post for real. */}
-            <ModeBadge on={GENERATION_DRY_RUN} onText="AI: dry run (free)" offText="AI: live (paid)" />
-            <ModeBadge on={PUBLISH_DRY_RUN} onText="Posting: dry run" offText="Posting: live" />
-          </div>
+          {testMode && <p className="hidden text-xs font-medium text-amber-700 sm:block">{testMode}</p>}
         </div>
         <main className="relative mx-auto w-full max-w-7xl flex-1 px-6 py-10 lg:px-10">{children}</main>
       </div>
     </div>
-  );
-}
-
-function ModeBadge({ on, onText, offText }: { on: boolean; onText: string; offText: string }) {
-  return (
-    <span
-      className={`hidden items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium sm:flex ${
-        on ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-teal-200 bg-teal-50 text-teal-800'
-      }`}
-    >
-      <span className={`h-1.5 w-1.5 rounded-full ${on ? 'bg-amber-500' : 'bg-teal-500'}`} />
-      {on ? onText : offText}
-    </span>
   );
 }

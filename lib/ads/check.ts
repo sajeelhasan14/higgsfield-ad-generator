@@ -1,9 +1,8 @@
-// Step 3 of the autopilot: Claude compares a finished ad with the real product photo and the product's own data.
+// Step 3 of the autopilot: the AI compares a finished ad with the real product photo and the product's own data.
 // It can only say "a person should look at this". It never approves or changes an ad.
-import Anthropic from '@anthropic-ai/sdk';
-import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import sharp from 'sharp';
 import { z } from 'zod';
+import { askAi } from '@/lib/ai/ask';
 import type { ProductWithVariants } from '@/lib/products/types';
 import { readStoredFile } from '@/lib/storage';
 import { download } from './images';
@@ -22,28 +21,15 @@ const asJpeg = async (bytes: Buffer) => (await sharp(bytes).resize({ width: 1200
 /** Only an unclear answer is treated as a failure, so a person looks. A failed API call throws, and the ad is tried again later. */
 export async function checkAd(ad: Ad, product: ProductWithVariants): Promise<{ passed: boolean; problems: string[] }> {
   const [photo, finished] = await Promise.all([download(product.imageUrl!).then(asJpeg), readStoredFile(ad.images[0]).then(asJpeg)]);
-  const prices = product.variants.map((v) => `${v.title}: ${v.price} ${v.currency}`).join('\n');
+  const prices = product.variants.map((v) => `${v.title}: ${v.price} ${v.currency}${v.compareAtPrice ? ` (was ${v.compareAtPrice})` : ''}`).join('\n');
 
-  const response = await new Anthropic().beta.messages.parse({
-    model: 'claude-opus-5-5',
-    max_tokens: 16000,
-    betas: ['server-side-fallback-2026-07-01'],
-    fallbacks: 'default',
-    system: INSTRUCTIONS,
-    output_config: { effort: 'medium', format: zodOutputFormat(CheckResult) },
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: 'The real product photo:' },
-          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: photo } },
-          { type: 'text', text: 'The finished advert:' },
-          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: finished } },
-          { type: 'text', text: `Caption:\n${ad.caption}\n\nProduct title: ${product.title}\nProduct description: ${excerpt(product.description, 1500)}\nPrices:\n${prices}` },
-        ],
-      },
-    ],
-  });
+  const answer = await askAi(CheckResult, INSTRUCTIONS, [
+    { type: 'text', text: 'The real product photo:' },
+    { type: 'image', jpegBase64: photo },
+    { type: 'text', text: 'The finished advert:' },
+    { type: 'image', jpegBase64: finished },
+    { type: 'text', text: `Caption:\n${ad.caption}\n\nProduct title: ${product.title}\nProduct description: ${excerpt(product.description, 1500)}\nPrices:\n${prices}` },
+  ]);
 
-  return response.parsed_output ?? { passed: false, problems: ['The automatic check gave no clear answer, so a person should look at this ad.'] };
+  return answer ?? { passed: false, problems: ['The automatic check gave no clear answer, so a person should look at this ad.'] };
 }

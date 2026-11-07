@@ -8,7 +8,8 @@ const AD_SELECT = `
          COALESCE((SELECT array_agg(i.image_url ORDER BY i.position) FROM ad_images i WHERE i.ad_id = a.id), '{}') AS images,
          (SELECT min(s.scheduled_at) FROM posts s WHERE s.ad_id = a.id AND s.status <> 'cancelled') AS "scheduledAt",
          (SELECT l.reason FROM autopilot_log l WHERE l.ad_id = a.id AND l.action = 'auto-create' LIMIT 1) AS "autoReason",
-         a.look, a.check_status AS "checkStatus", a.check_notes AS "checkNotes"
+         a.look, a.check_status AS "checkStatus", a.check_notes AS "checkNotes",
+         a.angle, a.caption_intro AS "captionIntro"
   FROM ads a
   LEFT JOIN products p ON p.id = a.product_id`;
 
@@ -55,13 +56,16 @@ export async function saveAdCheck(adId: string, passed: boolean, notes: string):
 }
 
 /** Saves the finished image, caption and the prices it shows, and moves the ad to 'ready' for review. */
-export async function markAdReady(adId: string, imageKeys: string[], caption: string, priceSignature: string): Promise<void> {
+export async function markAdReady(adId: string, imageKeys: string[], caption: string, priceSignature: string, intro: string | null, angle: string | null): Promise<void> {
   await withTransaction(async (client) => {
     await client.query('DELETE FROM ad_images WHERE ad_id = $1', [adId]);
     for (const [i, key] of imageKeys.entries()) {
       await client.query('INSERT INTO ad_images (ad_id, position, image_url) VALUES ($1, $2, $3)', [adId, i + 1, key]);
     }
-    await client.query(`UPDATE ads SET status = 'ready', caption = $2, price_signature = $3, error = NULL, check_status = NULL, check_notes = NULL WHERE id = $1`, [adId, caption, priceSignature]);
+    await client.query(
+      `UPDATE ads SET status = 'ready', caption = $2, price_signature = $3, caption_intro = $4, angle = $5, error = NULL, check_status = NULL, check_notes = NULL WHERE id = $1`,
+      [adId, caption, priceSignature, intro, angle],
+    );
   });
 }
 
@@ -72,11 +76,27 @@ export async function markAdFailed(adId: string, error: string): Promise<void> {
 /** Queues the ad to be generated again with a new AI picture (one new paid image). */
 export async function requeueAd(adId: string): Promise<void> {
   const rows = await query(
-    `UPDATE ads SET status = 'generating', hero_request_id = NULL, hero_attempt = hero_attempt + 1, error = NULL
+    `UPDATE ads SET status = 'generating', hero_request_id = NULL, hero_attempt = hero_attempt + 1, error = NULL, caption_intro = NULL, angle = NULL
      WHERE id = $1 AND status IN ('ready', 'failed') RETURNING id`,
     [adId],
   );
   if (!rows.length) throw new Error('Only a ready or failed ad can be regenerated');
+}
+
+/**
+ * Takes the ad's one automatic retry, and says whether it may have it. Only a brand-new ad qualifies: made in the
+ * last day, still 'ready', and never scheduled, posted or promoted. Every other ad must stay exactly as it is.
+ */
+export async function claimCheckRetry(adId: string): Promise<boolean> {
+  const rows = await query(
+    `UPDATE ads a SET check_retried = true
+     WHERE a.id = $1 AND a.status = 'ready' AND NOT a.check_retried AND a.created_at > now() - interval '1 day'
+       AND NOT EXISTS (SELECT 1 FROM posts p WHERE p.ad_id = a.id)
+       AND NOT EXISTS (SELECT 1 FROM paid_ads pa WHERE pa.ad_id = a.id)
+     RETURNING a.id`,
+    [adId],
+  );
+  return rows.length > 0;
 }
 
 export async function updateCaption(adId: string, caption: string): Promise<void> {

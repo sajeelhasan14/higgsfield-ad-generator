@@ -30,20 +30,17 @@ export const AUTOPILOT_LEVEL: 'advice' | 'pause' | 'full' = process.env.AUTOPILO
 /** true: in full mode, ads that passed the automatic check launch without a person approving them. Off by default. */
 export const AUTO_LAUNCH_WITHOUT_REVIEW = process.env.AUTO_LAUNCH_WITHOUT_REVIEW === '1';
 
-/** The automatic ad check runs only with a Claude key. */
-export const AD_CHECK_ENABLED = Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+/** The ad check, caption angles and weekly explanation run only with an OpenAI key. */
+export const AI_ENABLED = Boolean(process.env.OPENAI_API_KEY?.trim());
+
+/** The OpenAI model for those. It must be able to read images, for the ad check. */
+export const OPENAI_MODEL = process.env.OPENAI_MODEL?.trim() || 'gpt-5.5';
 
 /** VAT inside the store's prices, in percent. For real profit. */
 export const VAT_PERCENT = process.env.VAT_PERCENT ? Number(process.env.VAT_PERCENT) : 20;
 
 /** Profit as a percent of the price before VAT, used for items with no cost in Shopify. Unset means no guessing. */
 export const ROUGH_MARGIN_PERCENT = process.env.ROUGH_MARGIN_PERCENT ? Number(process.env.ROUGH_MARGIN_PERCENT) : null;
-
-/** Slack or Discord incoming webhook for alerts and the weekly report. */
-export const ALERT_WEBHOOK_URL = process.env.ALERT_WEBHOOK_URL?.trim() || null;
-
-/** A monitor (e.g. healthchecks.io) the worker pings hourly; it raises the alarm when the pings stop. */
-export const HEALTHCHECK_PING_URL = process.env.HEALTHCHECK_PING_URL?.trim() || null;
 
 /** Every platform the app can post to. */
 export const PLATFORMS = ['instagram', 'facebook'] as const;

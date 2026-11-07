@@ -16,8 +16,8 @@
     "import:products-json": "tsx --env-file=.env.local scripts/import-products-json.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.6.0",
     "next": "16.4.3",
+    "openai": "^7.53.0",
     "pg": "^8.23.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",

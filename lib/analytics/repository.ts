@@ -45,12 +45,13 @@ export async function listPaidAdsOnMeta(): Promise<{ id: string; metaAdId: strin
 
 export async function saveAdDay(paidAdId: string, day: MetaAdDay): Promise<void> {
   await query(
-    `INSERT INTO ad_daily_stats (paid_ad_id, day, spend, impressions, link_clicks, meta_purchases, meta_revenue)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO ad_daily_stats (paid_ad_id, day, spend, impressions, link_clicks, landing_views, add_to_carts, checkouts, meta_purchases, meta_revenue)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      ON CONFLICT (paid_ad_id, day) DO UPDATE SET
        spend = EXCLUDED.spend, impressions = EXCLUDED.impressions, link_clicks = EXCLUDED.link_clicks,
+       landing_views = EXCLUDED.landing_views, add_to_carts = EXCLUDED.add_to_carts, checkouts = EXCLUDED.checkouts,
        meta_purchases = EXCLUDED.meta_purchases, meta_revenue = EXCLUDED.meta_revenue`,
-    [paidAdId, day.day, day.spend, day.impressions, day.linkClicks, day.purchases, day.purchaseValue],
+    [paidAdId, day.day, day.spend, day.impressions, day.linkClicks, day.landingViews, day.addToCarts, day.checkouts, day.purchases, day.purchaseValue],
   );
 }
 
@@ -59,6 +60,9 @@ export interface Summary {
   spend: number;
   impressions: number;
   linkClicks: number;
+  landingViews: number;
+  addToCarts: number;
+  checkouts: number;
   adOrders: number;
   adRevenue: number;
   storeRevenue: number;
@@ -84,6 +88,9 @@ export interface AdResult {
   image: string | null;
   spend: number;
   linkClicks: number;
+  landingViews: number;
+  addToCarts: number;
+  checkouts: number;
   orders: number;
   revenue: number;
 }
@@ -139,7 +146,8 @@ export async function getDashboard(days: number): Promise<Dashboard> {
     query<Summary>(
       `WITH meta AS (
          SELECT COALESCE(SUM(spend), 0)::float8 AS spend, COALESCE(SUM(impressions), 0)::int AS impressions,
-                COALESCE(SUM(link_clicks), 0)::int AS link_clicks
+                COALESCE(SUM(link_clicks), 0)::int AS link_clicks, COALESCE(SUM(landing_views), 0)::int AS landing_views,
+                COALESCE(SUM(add_to_carts), 0)::int AS add_to_carts, COALESCE(SUM(checkouts), 0)::int AS checkouts
          FROM ad_daily_stats WHERE day >= ${FROM_DAY}::date
        ), sales AS (
          SELECT COUNT(*) FILTER (WHERE o.ad_id IS NOT NULL)::int AS ad_orders,
@@ -148,7 +156,8 @@ export async function getDashboard(days: number): Promise<Dashboard> {
          FROM orders o WHERE ${COUNTED_ORDER}
        )
        SELECT COALESCE((SELECT currency FROM orders ORDER BY placed_at DESC LIMIT 1), 'GBP') AS currency,
-              meta.spend, meta.impressions, meta.link_clicks AS "linkClicks",
+              meta.spend, meta.impressions, meta.link_clicks AS "linkClicks", meta.landing_views AS "landingViews",
+              meta.add_to_carts AS "addToCarts", meta.checkouts,
               sales.ad_orders AS "adOrders", sales.ad_revenue AS "adRevenue", sales.store_revenue AS "storeRevenue"
        FROM meta, sales`,
       params,
@@ -177,7 +186,8 @@ export async function getDashboard(days: number): Promise<Dashboard> {
     ),
     query<AdResult>(
       `WITH spent AS (
-         SELECT pa.ad_id, SUM(s.spend) AS spend, SUM(s.link_clicks) AS link_clicks
+         SELECT pa.ad_id, SUM(s.spend) AS spend, SUM(s.link_clicks) AS link_clicks, SUM(s.landing_views) AS landing_views,
+                SUM(s.add_to_carts) AS add_to_carts, SUM(s.checkouts) AS checkouts
          FROM ad_daily_stats s JOIN paid_ads pa ON pa.id = s.paid_ad_id
          WHERE s.day >= ${FROM_DAY}::date GROUP BY pa.ad_id
        ), sold AS (
@@ -187,6 +197,8 @@ export async function getDashboard(days: number): Promise<Dashboard> {
        SELECT a.id AS "adId", p.title AS "productTitle",
               (SELECT i.image_url FROM ad_images i WHERE i.ad_id = a.id ORDER BY i.position LIMIT 1) AS image,
               COALESCE(spent.spend, 0)::float8 AS spend, COALESCE(spent.link_clicks, 0)::int AS "linkClicks",
+              COALESCE(spent.landing_views, 0)::int AS "landingViews", COALESCE(spent.add_to_carts, 0)::int AS "addToCarts",
+              COALESCE(spent.checkouts, 0)::int AS checkouts,
               COALESCE(sold.orders, 0)::int AS orders, COALESCE(sold.revenue, 0)::float8 AS revenue
        FROM spent FULL JOIN sold USING (ad_id)
        JOIN ads a ON a.id = ad_id

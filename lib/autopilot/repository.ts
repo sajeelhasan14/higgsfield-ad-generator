@@ -2,7 +2,7 @@
 import { POSTING_TIMEZONE } from '@/lib/config';
 import { query, withTransaction } from '@/lib/db';
 import type { Candidate, ProductPick } from './choose';
-import type { LookResult } from './learn';
+import type { OptionResult } from './learn';
 import type { AdFacts } from './rules';
 
 /**
@@ -13,6 +13,7 @@ import type { AdFacts } from './rules';
 export async function listCandidates(): Promise<Candidate[]> {
   return query<Candidate>(
     `SELECT p.id, p.product_type AS "productType", COALESCE(s.sales, 0)::float8 AS sales, COALESCE(s.orders, 0)::int AS orders,
+            (SELECT max(v.price)::float8 FROM variants v WHERE v.product_id = p.id) AS "maxPrice",
             (SELECT COALESCE(sum(st.spend), 0)::float8 FROM ad_daily_stats st JOIN paid_ads pa ON pa.id = st.paid_ad_id JOIN ads a ON a.id = pa.ad_id
              WHERE a.product_id = p.id) AS "productSpend",
             (SELECT count(*)::int FROM orders o JOIN ads a ON a.id = o.ad_id WHERE a.product_id = p.id AND o.cancelled_at IS NULL AND o.total > 0) AS "productOrders",
@@ -103,14 +104,14 @@ export async function spentThisMonth(): Promise<number> {
   return row?.spent ?? 0;
 }
 
-/** Each photo style's results, for ads that ran as paid ads. */
-export async function listLookResults(): Promise<LookResult[]> {
-  return query<LookResult>(
-    `SELECT COALESCE(p.product_type, '') AS "productType", a.look,
+/** Each photo style's or caption angle's results, for ads that ran as paid ads. The column is one of the two fixed names, never user input. */
+export async function listOptionResults<T extends 'look' | 'angle'>(column: T): Promise<OptionResult<T extends 'look' ? number : string>[]> {
+  return query(
+    `SELECT COALESCE(p.product_type, '') AS "productType", a.${column} AS option,
             COALESCE((SELECT sum(st.spend) FROM ad_daily_stats st JOIN paid_ads pa ON pa.id = st.paid_ad_id WHERE pa.ad_id = a.id), 0)::float8 AS spend,
             (SELECT count(*)::int FROM orders o WHERE o.ad_id = a.id AND o.cancelled_at IS NULL AND o.total > 0) AS orders
      FROM ads a LEFT JOIN products p ON p.id = a.product_id
-     WHERE a.look IS NOT NULL AND EXISTS (SELECT 1 FROM paid_ads pa WHERE pa.ad_id = a.id)`,
+     WHERE a.${column} IS NOT NULL AND EXISTS (SELECT 1 FROM paid_ads pa WHERE pa.ad_id = a.id)`,
   );
 }
 
@@ -129,6 +130,17 @@ export async function listLaunchableAds(withoutReview: boolean): Promise<string[
   return rows.map((row) => row.id);
 }
 
+/** Ads the autopilot made that passed the check and were never scheduled. Ads a person made never qualify. */
+export async function listAdsToAutoPost(): Promise<string[]> {
+  const rows = await query<{ id: string }>(
+    `SELECT a.id FROM ads a
+     JOIN autopilot_log l ON l.ad_id = a.id AND l.action = 'auto-create'
+     WHERE a.status = 'ready' AND a.check_status = 'passed' AND NOT EXISTS (SELECT 1 FROM posts p WHERE p.ad_id = a.id)
+     ORDER BY a.created_at`,
+  );
+  return rows.map((row) => row.id);
+}
+
 /** Posts and ads that failed lately, to alert about. */
 export async function listRecentFailures(): Promise<{ key: string; message: string }[]> {
   return query(
@@ -140,10 +152,39 @@ export async function listRecentFailures(): Promise<{ key: string; message: stri
   );
 }
 
+export interface AdIdea {
+  id: string;
+  idea: string;
+}
+
+/** Ideas waiting for a person. An idea seen before is skipped, so a dismissed one never comes back. */
+export async function saveIdeas(ideas: string[]): Promise<void> {
+  for (const idea of ideas) await query(`INSERT INTO ad_ideas (idea) VALUES ($1) ON CONFLICT (idea) DO NOTHING`, [idea]);
+}
+
+export async function listNewIdeas(): Promise<AdIdea[]> {
+  return query<AdIdea>(`SELECT id, idea FROM ad_ideas WHERE status = 'new' ORDER BY id`);
+}
+
+/** Ideas a person chose to use, which join the caption angles. */
+export async function listApprovedIdeas(): Promise<string[]> {
+  return (await query<{ idea: string }>(`SELECT idea FROM ad_ideas WHERE status = 'approved' ORDER BY id`)).map((row) => row.idea);
+}
+
+export async function setIdeaStatus(id: string, status: 'approved' | 'dismissed'): Promise<void> {
+  await query(`UPDATE ad_ideas SET status = $2 WHERE id = $1`, [id, status]);
+}
+
+/** The newest weekly explanation. Saved, so opening a page never costs an AI call. */
+export async function latestInsight(): Promise<string | null> {
+  const [row] = await query<{ reason: string }>(`SELECT reason FROM autopilot_log WHERE action = 'insight' ORDER BY id DESC LIMIT 1`);
+  return row?.reason ?? null;
+}
+
 /** Queues the ad and logs it together: an ad without its log row would not count towards the weekly limit. */
-export async function createAutoAd(pick: ProductPick, look: number, reason: string): Promise<string> {
+export async function createAutoAd(pick: ProductPick, look: number, angle: string | null, reason: string): Promise<string> {
   return withTransaction(async (client) => {
-    const { rows } = await client.query<{ id: string }>(`INSERT INTO ads (product_id, status, look) VALUES ($1, 'generating', $2) RETURNING id`, [pick.productId, look]);
+    const { rows } = await client.query<{ id: string }>(`INSERT INTO ads (product_id, status, look, angle) VALUES ($1, 'generating', $2, $3) RETURNING id`, [pick.productId, look, angle]);
     await client.query(`INSERT INTO autopilot_log (action, ad_id, product_id, reason) VALUES ('auto-create', $1, $2, $3)`, [rows[0].id, pick.productId, reason]);
     return rows[0].id;
   });

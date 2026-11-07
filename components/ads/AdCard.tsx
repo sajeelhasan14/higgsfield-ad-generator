@@ -1,6 +1,8 @@
 // One ad on the Review page: the post image (and any Instagram carousel slides) on the left, caption and buttons on the right.
 import { approveAction, deleteAction, refreshDesignAction, regenerateAction } from '@/app/(dashboard)/review/actions';
 import { ActionButton } from '@/components/ActionButton';
+import { AdPreview } from './AdPreview';
+import { imageDestinations } from '@/lib/ads/destinations';
 import type { Ad } from '@/lib/ads/types';
 import { mediaUrl } from '@/lib/storage';
 import { CaptionForm } from './CaptionForm';
@@ -21,8 +23,7 @@ export function AdCard({ ad }: { ad: Ad }) {
     <li className="flex flex-col gap-5 rounded-2xl border border-line bg-surface p-5 sm:flex-row">
       <div className="w-full shrink-0 sm:w-64">
         {ad.status === 'ready' && ad.images[0] ? (
-          // eslint-disable-next-line @next/next/no-img-element -- our own JPEG, already sized
-          <img src={mediaUrl(ad.images[0])} alt={`Ad for ${title}`} className="aspect-[4/5] w-full rounded-xl border border-line object-cover" />
+          <AdPreview images={ad.images.map(mediaUrl)} labels={imageDestinations(ad.images.length)} title={title} buttonClassName="w-full" className="aspect-[4/5] w-full rounded-xl border border-line object-cover" />
         ) : (
           <div className="grid aspect-[4/5] w-full place-items-center rounded-xl border border-dashed border-line bg-canvas text-sm text-muted">
             {ad.status === 'generating' ? <span className="animate-pulse">Drawing…</span> : 'No image'}
@@ -34,8 +35,7 @@ export function AdCard({ ad }: { ad: Ad }) {
             <p className="mb-1.5 text-xs text-muted">Instagram carousel · {ad.images.length - 1} slides</p>
             <div className="flex gap-1.5 overflow-x-auto">
               {ad.images.slice(1).map((key, i) => (
-                // eslint-disable-next-line @next/next/no-img-element -- our own JPEG, already sized
-                <img key={key} src={mediaUrl(key)} alt={`Slide ${i + 1}`} className="aspect-[4/5] w-14 shrink-0 rounded-md border border-line object-cover" />
+                <AdPreview key={key} images={ad.images.map(mediaUrl)} labels={imageDestinations(ad.images.length)} start={i + 1} title={title} className="aspect-[4/5] w-14 rounded-md border border-line object-cover" />
               ))}
             </div>
           </div>
@@ -50,6 +50,7 @@ export function AdCard({ ad }: { ad: Ad }) {
               Ad #{ad.id} · created {ad.createdAt.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
             </p>
             {ad.autoReason && <p className="mt-1 text-xs text-muted">Chosen by autopilot: {ad.autoReason}</p>}
+            {ad.angle && <p className="mt-1 text-xs text-muted">Caption angle: {ad.angle}</p>}
             {ad.checkStatus === 'passed' && <p className="mt-1 text-xs text-teal-700">Automatic check passed</p>}
             {ad.checkStatus === 'failed' && <p className="mt-1 text-xs text-red-600">Automatic check found a problem: {ad.checkNotes}</p>}
           </div>

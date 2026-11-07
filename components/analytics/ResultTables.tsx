@@ -20,22 +20,25 @@ function percent(part: number, whole: number): string {
 
 /**
  * Numbers instead of bars on purpose: thousands of views next to a few orders would leave the last bars invisible.
- * "Times shown" and "clicks" come from Meta; "orders" comes from Shopify.
+ * Every step but the last comes from Meta, counted per ad, so other sites on the Pixel don't get in. "Orders" comes from Shopify.
  */
-export function FunnelSteps({ shown, clicks, orders }: { shown: number; clicks: number; orders: number }) {
+export function FunnelSteps({ shown, clicks, landingViews, addToCarts, checkouts, orders }: { shown: number; clicks: number; landingViews: number; addToCarts: number; checkouts: number; orders: number }) {
   const steps = [
     { label: 'Times shown', value: shown, note: 'how often people saw the ads' },
-    { label: 'Clicks to the store', value: clicks, note: `${percent(clicks, shown)} of times shown` },
+    { label: 'Clicks', value: clicks, note: `${percent(clicks, shown)} of times shown` },
+    { label: 'Page views', value: landingViews, note: `${percent(landingViews, clicks)} of clicks` },
+    { label: 'Add to cart', value: addToCarts, note: `${percent(addToCarts, clicks)} of clicks` },
+    { label: 'Checkout', value: checkouts, note: `${percent(checkouts, clicks)} of clicks` },
     { label: 'Orders', value: orders, note: `${percent(orders, clicks)} of clicks` },
   ];
   return (
-    <div className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-5 sm:flex-row sm:items-center sm:gap-4">
+    <div className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-5 lg:flex-row lg:items-center lg:gap-3">
       {steps.map((step, i) => (
         <Fragment key={step.label}>
-          {i > 0 && <Icon name="chevron" className="h-5 w-5 shrink-0 rotate-90 self-center text-muted sm:rotate-0" />}
-          <div className="flex-1">
+          {i > 0 && <Icon name="chevron" className="h-5 w-5 shrink-0 rotate-90 self-center text-muted lg:rotate-0" />}
+          <div className="min-w-0 flex-1">
             <p className="text-sm text-muted">{step.label}</p>
-            <p className="font-display text-3xl font-bold tabular-nums">{step.value.toLocaleString('en-GB')}</p>
+            <p className="font-display text-2xl font-bold tabular-nums">{step.value.toLocaleString('en-GB')}</p>
             <p className="text-xs text-muted">{step.note}</p>
           </div>
         </Fragment>
@@ -68,8 +71,12 @@ export function AdRanking({ ads, currency }: { ads: AdResult[]; currency: string
                 {ad.revenue > 0 && <div className="h-2 rounded-r bg-brand" style={{ width: `${Math.max(1, (ad.revenue / most) * 100)}%` }} />}
               </div>
               <p className="mt-2 text-xs text-muted">
-                Ad #{ad.adId} · {money(ad.spend, currency)} spent · {ad.linkClicks.toLocaleString('en-GB')} clicks · {ad.orders} {ad.orders === 1 ? 'order' : 'orders'}
+                Ad #{ad.adId} · {money(ad.spend, currency)} spent · {ad.orders} {ad.orders === 1 ? 'order' : 'orders'}
                 {perPound !== null && ` · ${money(perPound, currency)} earned per £1`}
+              </p>
+              <p className="mt-0.5 text-xs text-muted">
+                {ad.linkClicks.toLocaleString('en-GB')} clicks → {ad.landingViews.toLocaleString('en-GB')} page views → {ad.addToCarts.toLocaleString('en-GB')} add to cart → {ad.checkouts.toLocaleString('en-GB')} checkout → {ad.orders}{' '}
+                {ad.orders === 1 ? 'order' : 'orders'}
               </p>
             </div>
           </li>

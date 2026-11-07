@@ -22,7 +22,7 @@ export interface AdFacts {
 
 export interface Limits {
   maxCostPerSale: number; // 0 until the client has given the number
-  roomInBudget: number; // how much more can be added a day before all running ads reach the limit
+  roomInBudget: number; // how much more this ad can get a day before it reaches the limit for one ad
 }
 
 export type Recommendation =
@@ -54,7 +54,7 @@ function judge(ad: AdFacts, limits: Limits, now: Date): Recommendation {
   if (within(ad.lastIncreaseAt, DAYS_BETWEEN_INCREASES, now)) return { kind: 'keep', reason: `${results}. The budget went up recently, so it is left to settle.` };
 
   const rise = Math.min(Math.round(ad.dailyBudget * INCREASE_RATE * 100) / 100, roomInBudget);
-  if (rise <= 0) return { kind: 'keep', reason: `${results}. Doing well, but running ads are already at the daily budget limit.` };
+  if (rise <= 0) return { kind: 'keep', reason: `${results}. Doing well, and already at the daily limit for one ad.` };
   const newBudget = Math.round((ad.dailyBudget + rise) * 100) / 100;
   return { kind: 'increase', newBudget, reason: `${results}, well under the ${limit} limit. Raise the budget from ${gbp(ad.dailyBudget)} to ${gbp(newBudget)} a day.` };
 }

@@ -3,6 +3,7 @@ import { unscheduleAction } from '@/app/(dashboard)/schedule/actions';
 import { ActionButton } from '@/components/ActionButton';
 import { formatSlotTime } from '@/lib/format';
 import type { ScheduledAd } from '@/lib/posts/repository';
+import { AdPreview } from '@/components/ads/AdPreview';
 import { mediaUrl } from '@/lib/storage';
 
 const STATUS_PILL: Record<string, string> = {
@@ -16,8 +17,7 @@ export function ScheduledAdRow({ item, canUnschedule }: { item: ScheduledAd; can
   return (
     <li className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-3 pr-4">
       {item.firstSlide ? (
-        // eslint-disable-next-line @next/next/no-img-element -- our own JPEG thumbnail
-        <img src={mediaUrl(item.firstSlide)} alt="" className="h-20 w-16 shrink-0 rounded-lg border border-line object-cover" />
+        <AdPreview images={[mediaUrl(item.firstSlide)]} labels={['Scheduled post']} title={item.productTitle ?? 'Ad'} className="h-20 w-16 rounded-lg border border-line object-cover" />
       ) : (
         <div className="h-20 w-16 shrink-0 rounded-lg bg-stone-200" />
       )}

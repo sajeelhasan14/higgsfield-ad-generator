@@ -192,6 +192,9 @@ export interface MetaAdDay {
   spend: string;
   impressions: number;
   linkClicks: number;
+  landingViews: number; // these three are what Meta counts through the Pixel after a click on this ad
+  addToCarts: number;
+  checkouts: number;
   purchases: number; // what Meta counts through a Pixel; 0 without one
   purchaseValue: string;
 }
@@ -205,6 +208,12 @@ interface MetaAction {
 function purchaseAction(actions: MetaAction[] | undefined): string {
   const find = (type: string) => actions?.find((a) => a.action_type === type)?.value;
   return find('omni_purchase') ?? find('purchase') ?? '0';
+}
+
+/** The same step is listed under several names; the omni_ one is the combined figure, so only one is read. */
+function stepCount(actions: MetaAction[] | undefined, step: string): number {
+  const find = (type: string) => actions?.find((a) => a.action_type === type)?.value;
+  return Math.round(Number(find(`omni_${step}`) ?? find(step) ?? 0));
 }
 
 interface InsightsPage {
@@ -245,6 +254,9 @@ export async function readAdDailyStats(metaAdIds: string[], since: string, until
         spend: row.spend ?? '0',
         impressions: Number(row.impressions ?? 0),
         linkClicks: Number(row.inline_link_clicks ?? 0),
+        landingViews: stepCount(row.actions, 'landing_page_view'),
+        addToCarts: stepCount(row.actions, 'add_to_cart'),
+        checkouts: stepCount(row.actions, 'initiated_checkout'),
         purchases: Math.round(Number(purchaseAction(row.actions))),
         purchaseValue: purchaseAction(row.action_values),
       });

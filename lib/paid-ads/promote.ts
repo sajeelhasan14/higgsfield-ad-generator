@@ -1,7 +1,6 @@
 // Turning a finished ad into a paid Meta ad, and switching it on and off. The same checks as posting run
 // first (product still Active, prices unchanged), so a paid ad never shows a wrong price either.
 import { BRAND } from '@/lib/ads/brand';
-import { spentThisMonth } from '@/lib/autopilot/repository';
 import { isPaused } from '@/lib/autopilot/state';
 import { getAd } from '@/lib/ads/repository';
 import { shortName } from '@/lib/ads/text';
@@ -11,8 +10,8 @@ import { adAccountCurrency, createMetaAd, setAdsetBudget, setAdsetEnd, setCampai
 import { readStoredFile } from '@/lib/storage';
 import { getPaidAd, insertPaidAd, listActivePaidAds, setPaidAdBudget, setPaidAdStatus, type PaidAd } from './repository';
 
-// maxDaily is the agreed budget (£20 a day), for one ad and for all running ads together. Change it here if the budget changes.
-export const BUDGET_LIMITS = { minDaily: 1, maxDaily: 20, maxMonthly: 600, minDays: 1, maxDays: 30 };
+// Limits that catch a typo (500 instead of 5) before it costs money. Raise them here if the client wants more.
+export const BUDGET_LIMITS = { minDaily: 1, maxDaily: 100, minDays: 1, maxDays: 30 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -75,12 +74,6 @@ export async function switchPaidAd(id: string, on: boolean): Promise<string> {
   if (paid.endsAt && paid.endsAt.getTime() < Date.now()) throw new Error('This paid ad has finished its days. Promote the ad again for a new run.');
 
   if (await isPaused()) throw new Error('Pause everything is on. Press Resume on the Autopilot page first.');
-  if ((await spentThisMonth()) >= BUDGET_LIMITS.maxMonthly) throw new Error(`The monthly limit of £${BUDGET_LIMITS.maxMonthly} is reached.`);
-
-  // Finished ads stay 'active' in our table but no longer spend, so they don't count.
-  const running = (await listActivePaidAds()).filter((other) => !other.finished && other.id !== id);
-  const total = running.reduce((sum, other) => sum + Number(other.dailyBudget), Number(paid.dailyBudget));
-  if (total > BUDGET_LIMITS.maxDaily) throw new Error(`This would make £${total} a day in total, over the £${BUDGET_LIMITS.maxDaily} limit. Switch another ad off first.`);
 
   const ad = await getAd(paid.adId);
   if (!ad) throw new Error('The ad no longer exists');

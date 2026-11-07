@@ -1,16 +1,21 @@
 import { Suspense } from 'react';
 import { connection } from 'next/server';
 import { ActionButton } from '@/components/ActionButton';
+import { SettingsForm } from '@/components/autopilot/SettingsForm';
 import { EmptyState, PageHeader, SectionTitle, StatRow } from '@/components/shell/PageParts';
-import { listLog, spentThisMonth, type LogEntry } from '@/lib/autopilot/repository';
+import { listLog, listNewIdeas, spentThisMonth, type LogEntry } from '@/lib/autopilot/repository';
 import { buildReport } from '@/lib/autopilot/report';
+import { getSettings } from '@/lib/autopilot/settings';
 import { isPaused, workerStatus } from '@/lib/autopilot/state';
-import { AD_CHECK_ENABLED, ALERT_WEBHOOK_URL, AUTO_CREATE_ADS_PER_WEEK, AUTOPILOT_LEVEL, HEALTHCHECK_PING_URL, MAX_AD_COST_PER_SALE } from '@/lib/config';
+import { AI_ENABLED, GENERATION_DRY_RUN, PUBLISH_DRY_RUN } from '@/lib/config';
 import { formatPrice, formatSlotTime } from '@/lib/format';
-import { BUDGET_LIMITS } from '@/lib/paid-ads/promote';
-import { pauseEverythingAction, resumeEverythingAction } from './actions';
+import { dismissIdeaAction, pauseEverythingAction, resumeEverythingAction, useIdeaAction } from './actions';
 
-const LEVELS = { advice: 'Advice only', pause: 'Pauses poor ads', full: 'Launches and adjusts ads' };
+const LEVELS = {
+  advice: { name: 'Advice only', note: 'It suggests, you decide' },
+  pause: { name: 'Pauses poor ads', note: 'It can switch poor ads off' },
+  full: { name: 'Launches and adjusts ads', note: 'It can launch ads and change budgets' },
+};
 
 export default function AutopilotPage() {
   return (
@@ -52,8 +57,16 @@ function LogList({ title, entries }: { title: string; entries: LogEntry[] }) {
 
 async function Status() {
   await connection(); // always fresh from the database
-  const [paused, { seen, alive: workerOk }, spent, log, report] = await Promise.all([isPaused(), workerStatus(), spentThisMonth(), listLog(), buildReport()]);
-  const decisions = log.filter((entry) => !entry.action.startsWith('alert:'));
+  const [paused, { seen, alive: workerOk }, spent, log, report, ideas, settings] = await Promise.all([
+    isPaused(),
+    workerStatus(),
+    spentThisMonth(),
+    listLog(),
+    buildReport(),
+    listNewIdeas(),
+    getSettings(),
+  ]);
+  const decisions = log.filter((entry) => !entry.action.startsWith('alert:') && entry.action !== 'insight');
   const alerts = log.filter((entry) => entry.action.startsWith('alert:'));
 
   return (
@@ -69,27 +82,47 @@ async function Status() {
       <StatRow
         stats={[
           { label: 'Status', value: paused ? 'Paused' : 'Running', tone: paused ? 'red' : 'green' },
-          { label: 'Level', value: LEVELS[AUTOPILOT_LEVEL], tone: 'blue' },
-          { label: 'Spent this month', value: formatPrice(String(spent), 'GBP'), tone: 'amber', note: `Limit £${BUDGET_LIMITS.maxMonthly} a month, £${BUDGET_LIMITS.maxDaily} a day` },
+          { label: 'Mode', value: LEVELS[settings.mode].name, tone: 'blue', note: LEVELS[settings.mode].note },
+          { label: 'Spent this month', value: formatPrice(String(spent), 'GBP'), tone: 'amber' },
           { label: 'Worker', value: workerOk ? 'Working' : 'Not seen', tone: workerOk ? 'green' : 'red', note: seen ? `Last seen ${formatSlotTime(seen)}` : undefined },
         ]}
       />
 
       <section>
-        <SectionTitle>Setup</SectionTitle>
+        <SectionTitle>Settings</SectionTitle>
+        <SettingsForm settings={settings} />
+      </section>
+
+      <section>
+        <SectionTitle>Connections</SectionTitle>
         <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
-          <SetupRow label="Weekly ads" ready={AUTO_CREATE_ADS_PER_WEEK > 0} note={AUTO_CREATE_ADS_PER_WEEK > 0 ? `${AUTO_CREATE_ADS_PER_WEEK} a week` : 'Off'} />
-          <SetupRow label="Limit per sale" ready={MAX_AD_COST_PER_SALE > 0} note={MAX_AD_COST_PER_SALE > 0 ? `£${MAX_AD_COST_PER_SALE}` : 'Not set, so no advice'} />
-          <SetupRow label="Automatic ad check" ready={AD_CHECK_ENABLED} note={AD_CHECK_ENABLED ? 'On' : 'Off, a person checks each ad'} />
-          <SetupRow label="Alerts" ready={Boolean(ALERT_WEBHOOK_URL)} note={ALERT_WEBHOOK_URL ? 'On' : 'Shown here only'} />
-          <SetupRow label="Worker monitor" ready={Boolean(HEALTHCHECK_PING_URL)} note={HEALTHCHECK_PING_URL ? 'On' : 'Off'} />
+          <SetupRow label="AI pictures" ready={!GENERATION_DRY_RUN} note={GENERATION_DRY_RUN ? 'Test mode, uses the real photo' : 'Live, each picture is paid'} />
+          <SetupRow label="Posting" ready={!PUBLISH_DRY_RUN} note={PUBLISH_DRY_RUN ? 'Test mode, nothing is posted' : 'Live, posts for real'} />
+          <SetupRow label="AI check, captions and explanations" ready={AI_ENABLED} note={AI_ENABLED ? 'On' : 'Off, a person checks each ad'} />
         </ul>
       </section>
 
       <section>
         <SectionTitle>Last 7 days</SectionTitle>
-        <p className="rounded-2xl border border-line bg-surface p-4 text-sm">{report}</p>
+        <p className="whitespace-pre-line rounded-2xl border border-line bg-surface p-4 text-sm">{report}</p>
       </section>
+
+      {ideas.length > 0 && (
+        <section>
+          <SectionTitle count={ideas.length}>New ad ideas</SectionTitle>
+          <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
+            {ideas.map((idea) => (
+              <li key={idea.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+                <span>{idea.idea}</span>
+                <span className="flex gap-2">
+                  <ActionButton action={useIdeaAction} fields={{ ideaId: idea.id }} label="Use" tone="primary" />
+                  <ActionButton action={dismissIdeaAction} fields={{ ideaId: idea.id }} label="Dismiss" />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {alerts.length > 0 && <LogList title="Alerts" entries={alerts} />}
       {decisions.length > 0 ? <LogList title="Decisions" entries={decisions} /> : <EmptyState>Nothing has been decided yet.</EmptyState>}

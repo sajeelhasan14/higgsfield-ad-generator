@@ -1,9 +1,12 @@
 import { Suspense } from 'react';
 import { connection } from 'next/server';
+import { AdPreview } from '@/components/ads/AdPreview';
 import { PaidAdRow } from '@/components/meta-ads/PaidAdRow';
 import { PromoteForm } from '@/components/meta-ads/PromoteForm';
 import { EmptyState, PageHeader, SectionTitle, StatRow } from '@/components/shell/PageParts';
+import { PAID_AD_LABEL } from '@/lib/ads/destinations';
 import { listAdsByStatus } from '@/lib/ads/repository';
+import type { Ad } from '@/lib/ads/types';
 import { listRecommendations } from '@/lib/autopilot/recommendations';
 import { PUBLISH_DRY_RUN } from '@/lib/config';
 import { formatPrice } from '@/lib/format';
@@ -38,10 +41,34 @@ async function readLive(paid: PaidAd[]): Promise<{ live: Map<string, MetaAdLive>
   }
 }
 
+function PromoteList({ ads }: { ads: Ad[] }) {
+  return (
+    <ul className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+      {ads.map((ad) => (
+        <li key={ad.id} className="flex gap-4 rounded-2xl border border-line bg-surface p-4">
+          <AdPreview images={[mediaUrl(ad.images[0])]} labels={[PAID_AD_LABEL]} title={ad.productTitle ?? 'Ad'} className="aspect-[4/5] w-28 rounded-xl border border-line object-cover" />
+          <div className="flex min-w-0 flex-1 flex-col gap-3">
+            <div>
+              <h3 className="font-display text-base font-bold leading-snug">{ad.productTitle ?? 'Product no longer in the catalog'}</h3>
+              <p className="text-xs text-muted">Ad #{ad.id} · {ad.status === 'approved' ? 'scheduled as a post' : 'ready'}</p>
+            </div>
+            <PromoteForm adId={ad.id} limits={BUDGET_LIMITS} />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 async function MetaAds() {
   await connection(); // always fresh from the database and Meta
   const [paid, promotable, advice] = await Promise.all([listPaidAds(), listAdsByStatus(['ready', 'approved']), listRecommendations()]);
   const { live, error } = await readLive(paid);
+  // An ad with a run still going, or switched off with days left, is in Paid ads above. One whose run finished can run again.
+  const promoted = new Set(paid.filter((p) => !p.finished).map((p) => p.adId));
+  const available = promotable.filter((ad) => !promoted.has(ad.id));
+  const notPosted = available.filter((ad) => ad.status === 'ready');
+  const posted = available.filter((ad) => ad.status === 'approved');
   const adAccount = process.env.META_AD_ACCOUNT_ID?.trim().replace(/^act_/, '') || null;
 
   const results = [...live.values()];
@@ -74,27 +101,16 @@ async function MetaAds() {
       </section>
 
       <section>
-        <SectionTitle count={promotable.length}>Promote an ad</SectionTitle>
-        {promotable.length === 0 ? (
-          <EmptyState>No finished ads. Generate one on the Products page first.</EmptyState>
-        ) : (
-          <ul className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-            {promotable.map((ad) => (
-              <li key={ad.id} className="flex gap-4 rounded-2xl border border-line bg-surface p-4">
-                {/* eslint-disable-next-line @next/next/no-img-element -- our own JPEG */}
-                <img src={mediaUrl(ad.images[0])} alt="" className="aspect-[4/5] w-28 shrink-0 rounded-xl border border-line object-cover" />
-                <div className="flex min-w-0 flex-1 flex-col gap-3">
-                  <div>
-                    <h3 className="font-display text-base font-bold leading-snug">{ad.productTitle ?? 'Product no longer in the catalog'}</h3>
-                    <p className="text-xs text-muted">Ad #{ad.id} · {ad.status === 'approved' ? 'scheduled as a post' : 'ready'}</p>
-                  </div>
-                  <PromoteForm adId={ad.id} limits={BUDGET_LIMITS} />
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+        <SectionTitle count={notPosted.length}>Promote an ad</SectionTitle>
+        {notPosted.length === 0 ? <EmptyState>No new ads to promote. Generate one on the Products page first.</EmptyState> : <PromoteList ads={notPosted} />}
       </section>
+
+      {posted.length > 0 && (
+        <section>
+          <SectionTitle count={posted.length}>Posted or scheduled, not promoted</SectionTitle>
+          <PromoteList ads={posted} />
+        </section>
+      )}
     </>
   );
 }

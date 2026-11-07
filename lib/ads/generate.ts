@@ -5,11 +5,13 @@
 //   3. request finished           → download it, render the post image, save it, write the caption → 'ready'
 import { createHash } from 'node:crypto';
 import sharp from 'sharp';
-import { GENERATION_DRY_RUN, HIGGSFIELD_MODEL } from '@/lib/config';
+import { listApprovedIdeas } from '@/lib/autopilot/repository';
+import { AI_ENABLED, GENERATION_DRY_RUN, HIGGSFIELD_MODEL } from '@/lib/config';
 import { getStatus, submit } from '@/lib/higgsfield/client';
 import { getProductWithVariants } from '@/lib/products/repository';
 import type { Product, ProductWithVariants } from '@/lib/products/types';
 import { deleteFile, listFolder, readStoredFile, saveFile } from '@/lib/storage';
+import { ANGLES, writeIntro } from './angles';
 import { buildCaption } from './caption';
 import { download, toDataUri } from './images';
 import { priceSignature, renderAd } from './post';
@@ -97,8 +99,27 @@ async function renderAndSave(ad: Ad, product: ProductWithVariants, picture: Buff
   const stamp = Date.now();
   const keys = [await saveFile(`${attemptPrefix(ad)}-post-${stamp}.jpg`, post)];
   for (const [i, slide] of carousel.entries()) keys.push(await saveFile(`${attemptPrefix(ad)}-slide-${i + 1}-${stamp}.jpg`, slide));
-  await markAdReady(ad.id, keys, buildCaption(product), priceSignature(product));
+  const { intro, angle } = await captionOpening(ad, product);
+  await markAdReady(ad.id, keys, buildCaption(product, intro), priceSignature(product), intro, angle);
   for (const old of ad.images) if (!keys.includes(old)) await deleteFile(old);
+}
+
+/**
+ * The caption's opening. An ad keeps the one it has, so Refresh design pays for nothing new. If the AI can't be
+ * reached or the description doesn't support the angle, the ad still finishes, with the plain template.
+ */
+async function captionOpening(ad: Ad, product: ProductWithVariants): Promise<{ intro: string | null; angle: string | null }> {
+  if (ad.captionIntro) return { intro: ad.captionIntro, angle: ad.angle };
+  if (!AI_ENABLED || GENERATION_DRY_RUN) return { intro: null, angle: null };
+  const angles = [...ANGLES, ...(await listApprovedIdeas())];
+  const angle = ad.angle ?? angles[(Number(ad.id) + ad.heroAttempt) % angles.length];
+  try {
+    const intro = await writeIntro(product, angle);
+    return intro ? { intro, angle } : { intro: null, angle: null };
+  } catch (err) {
+    console.error(`Ad ${ad.id}: no AI opening, using the template: ${err instanceof Error ? err.message : err}`);
+    return { intro: null, angle: null };
+  }
 }
 
 /**
