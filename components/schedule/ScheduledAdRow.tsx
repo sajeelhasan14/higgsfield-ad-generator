@@ -4,14 +4,8 @@ import { ActionButton } from '@/components/ActionButton';
 import { formatSlotTime } from '@/lib/format';
 import type { ScheduledAd } from '@/lib/posts/repository';
 import { AdPreview } from '@/components/ads/AdPreview';
+import { PostStatusPills } from '@/components/posts/PostStatusPills';
 import { mediaUrl } from '@/lib/storage';
-
-const STATUS_PILL: Record<string, string> = {
-  scheduled: 'border-brand/20 bg-brand-soft text-brand',
-  publishing: 'border-amber-200 bg-amber-50 text-amber-800',
-  published: 'border-teal-200 bg-teal-50 text-teal-800',
-  failed: 'border-red-200 bg-red-50 text-red-700',
-};
 
 export function ScheduledAdRow({ item, canUnschedule }: { item: ScheduledAd; canUnschedule: boolean }) {
   return (
@@ -26,20 +20,8 @@ export function ScheduledAdRow({ item, canUnschedule }: { item: ScheduledAd; can
         <p className="truncate text-sm text-muted">
           {item.productTitle ?? 'Product no longer in the catalog'} · Ad #{item.adId}
         </p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {item.posts.map((p) => {
-            const pill = `rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_PILL[p.status] ?? ''}`;
-            // A published post with a saved address opens on Instagram/Facebook in a new tab.
-            return p.permalink ? (
-              <a key={p.platform} href={p.permalink} target="_blank" rel="noopener noreferrer" title={`Open on ${p.platform}`} className={`${pill} hover:underline`}>
-                {p.platform} · {p.status} ↗
-              </a>
-            ) : (
-              <span key={p.platform} title={p.lastError ?? undefined} className={pill}>
-                {p.platform} · {p.status}
-              </span>
-            );
-          })}
+        <div className="mt-2">
+          <PostStatusPills posts={item.posts} />
         </div>
         {item.posts
           .filter((p) => p.lastError)

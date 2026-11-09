@@ -130,6 +130,34 @@ const SCHEDULE_SQL = `
   {filter}
   GROUP BY a.id, p.title`;
 
+export interface AdPost {
+  platform: string;
+  status: string;
+  scheduledAt: Date;
+  publishedAt: Date | null;
+  lastError: string | null;
+  permalink: string | null;
+}
+
+/**
+ * The current post on each platform for these ads, keyed by ad ID. Cancelled posts are left out; if an ad was
+ * scheduled more than once on a platform, only the newest post counts.
+ */
+export async function listPostsForAds(adIds: string[]): Promise<Map<string, AdPost[]>> {
+  if (adIds.length === 0) return new Map();
+  const rows = await query<AdPost & { adId: string }>(
+    `SELECT DISTINCT ON (ad_id, platform) ad_id AS "adId", platform, status, scheduled_at AS "scheduledAt",
+            published_at AS "publishedAt", last_error AS "lastError", permalink
+     FROM posts
+     WHERE ad_id = ANY($1::bigint[]) AND status <> 'cancelled'
+     ORDER BY ad_id, platform, id DESC`,
+    [adIds],
+  );
+  const byAd = new Map<string, AdPost[]>();
+  for (const { adId, ...post } of rows) byAd.set(adId, [...(byAd.get(adId) ?? []), post]);
+  return byAd;
+}
+
 /** Ads waiting to be posted, soonest first. */
 export async function listUpcoming(): Promise<ScheduledAd[]> {
   return query<ScheduledAd>(

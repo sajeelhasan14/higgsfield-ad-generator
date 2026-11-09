@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { connection } from 'next/server';
 import { AdPreview } from '@/components/ads/AdPreview';
 import { PaidAdRow } from '@/components/meta-ads/PaidAdRow';
+import { PostStatusPills } from '@/components/posts/PostStatusPills';
 import { PromoteForm } from '@/components/meta-ads/PromoteForm';
 import { EmptyState, PageHeader, SectionTitle, StatRow } from '@/components/shell/PageParts';
 import { PAID_AD_LABEL } from '@/lib/ads/destinations';
@@ -9,9 +10,10 @@ import { listAdsByStatus } from '@/lib/ads/repository';
 import type { Ad } from '@/lib/ads/types';
 import { listRecommendations } from '@/lib/autopilot/recommendations';
 import { PUBLISH_DRY_RUN } from '@/lib/config';
-import { formatPrice } from '@/lib/format';
+import { formatPrice, formatSlotTime } from '@/lib/format';
 import { BUDGET_LIMITS } from '@/lib/paid-ads/promote';
 import { listPaidAds, type PaidAd } from '@/lib/paid-ads/repository';
+import { listPostsForAds, type AdPost } from '@/lib/posts/repository';
 import { readMetaAds, type MetaAdLive } from '@/lib/publishing/meta-ads';
 import { mediaUrl } from '@/lib/storage';
 
@@ -41,21 +43,38 @@ async function readLive(paid: PaidAd[]): Promise<{ live: Map<string, MetaAdLive>
   }
 }
 
-function PromoteList({ ads }: { ads: Ad[] }) {
+/** One line saying where an ad's organic posts are, read from the posts themselves (the ad's own status stays "approved" after posting). */
+function postSummary(posts: AdPost[]): string {
+  if (posts.length === 0) return 'not posted';
+  if (posts.some((p) => p.status === 'failed')) return 'a post failed, see Schedule';
+  const published = posts.filter((p) => p.status === 'published');
+  if (published.length === posts.length) {
+    const last = Math.max(...published.map((p) => new Date(p.publishedAt ?? p.scheduledAt).getTime()));
+    return `posted ${formatSlotTime(new Date(last))}`;
+  }
+  const next = Math.min(...posts.map((p) => new Date(p.scheduledAt).getTime()));
+  return `${published.length > 0 ? 'partly posted, rest' : 'scheduled'} for ${formatSlotTime(new Date(next))}`;
+}
+
+function PromoteList({ ads, posts }: { ads: Ad[]; posts: Map<string, AdPost[]> }) {
   return (
     <ul className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-      {ads.map((ad) => (
-        <li key={ad.id} className="flex gap-4 rounded-2xl border border-line bg-surface p-4">
-          <AdPreview images={[mediaUrl(ad.images[0])]} labels={[PAID_AD_LABEL]} title={ad.productTitle ?? 'Ad'} className="aspect-[4/5] w-28 rounded-xl border border-line object-cover" />
-          <div className="flex min-w-0 flex-1 flex-col gap-3">
-            <div>
-              <h3 className="font-display text-base font-bold leading-snug">{ad.productTitle ?? 'Product no longer in the catalog'}</h3>
-              <p className="text-xs text-muted">Ad #{ad.id} · {ad.status === 'approved' ? 'scheduled as a post' : 'ready'}</p>
+      {ads.map((ad) => {
+        const adPosts = posts.get(ad.id) ?? [];
+        return (
+          <li key={ad.id} className="flex gap-4 rounded-2xl border border-line bg-surface p-4">
+            <AdPreview images={[mediaUrl(ad.images[0])]} labels={[PAID_AD_LABEL]} title={ad.productTitle ?? 'Ad'} className="aspect-[4/5] w-28 rounded-xl border border-line object-cover" />
+            <div className="flex min-w-0 flex-1 flex-col gap-3">
+              <div className="flex flex-col gap-2">
+                <h3 className="font-display text-base font-bold leading-snug">{ad.productTitle ?? 'Product no longer in the catalog'}</h3>
+                <p className="text-xs text-muted">Ad #{ad.id} · {postSummary(adPosts)}</p>
+                {adPosts.length > 0 && <PostStatusPills posts={adPosts} />}
+              </div>
+              <PromoteForm adId={ad.id} limits={BUDGET_LIMITS} />
             </div>
-            <PromoteForm adId={ad.id} limits={BUDGET_LIMITS} />
-          </div>
-        </li>
-      ))}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -69,6 +88,7 @@ async function MetaAds() {
   const available = promotable.filter((ad) => !promoted.has(ad.id));
   const notPosted = available.filter((ad) => ad.status === 'ready');
   const posted = available.filter((ad) => ad.status === 'approved');
+  const posts = await listPostsForAds(posted.map((ad) => ad.id));
   const adAccount = process.env.META_AD_ACCOUNT_ID?.trim().replace(/^act_/, '') || null;
 
   const results = [...live.values()];
@@ -102,13 +122,13 @@ async function MetaAds() {
 
       <section>
         <SectionTitle count={notPosted.length}>Promote an ad</SectionTitle>
-        {notPosted.length === 0 ? <EmptyState>No new ads to promote. Generate one on the Products page first.</EmptyState> : <PromoteList ads={notPosted} />}
+        {notPosted.length === 0 ? <EmptyState>No new ads to promote. Generate one on the Products page first.</EmptyState> : <PromoteList ads={notPosted} posts={new Map()} />}
       </section>
 
       {posted.length > 0 && (
         <section>
           <SectionTitle count={posted.length}>Posted or scheduled, not promoted</SectionTitle>
-          <PromoteList ads={posted} />
+          <PromoteList ads={posted} posts={posts} />
         </section>
       )}
     </>
