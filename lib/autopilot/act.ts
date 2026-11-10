@@ -3,19 +3,16 @@
 //   pause:  also switches off ads the rules say to pause (Stage 4).
 //   full:   also raises budgets and launches ads (Stage 5).
 import { AUTO_LAUNCH_WITHOUT_REVIEW } from '@/lib/config';
-import { BUDGET_LIMITS, pausePaidAd, promoteAd, raisePaidAdBudget, switchPaidAd } from '@/lib/paid-ads/promote';
+import { pausePaidAd, promoteAd, raisePaidAdBudget, switchPaidAd } from '@/lib/paid-ads/promote';
 import { getPaidAd, listActivePaidAds } from '@/lib/paid-ads/repository';
 import { readMetaAds } from '@/lib/publishing/meta-ads';
 import { sendAlert } from './alerts';
 import { writeWeeklyInsight } from './insights';
 import { listRecommendations } from './recommendations';
 import { lastActionAt, listLaunchableAds, listRecentFailures, logDecision, logEvent } from './repository';
+import { AUTO_LAUNCH_DAILY_BUDGET, autoLaunchDays, LAUNCH_GAP_MS } from './launch-plan';
 import { getSettings, type AutopilotMode } from './settings';
 import { isPaused, setPaused } from './state';
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-/** What each ad gets when the autopilot launches it by itself. */
-const AUTO_LAUNCH_DAILY_BUDGET = 20;
 
 /** Switches off every running ad and stops the autopilot, launches and scheduled posts. One failed ad doesn't stop the rest. */
 export async function pauseEverything(): Promise<string> {
@@ -56,11 +53,10 @@ async function applyAdvice(mode: AutopilotMode): Promise<void> {
 async function launchNextAd(maxCostPerSale: number): Promise<void> {
   if (maxCostPerSale <= 0) return; // without the limit, nothing could ever judge the ad
   const last = await lastActionAt('auto-launch');
-  if (last && Date.now() - last.getTime() < DAY_MS) return;
+  if (last && Date.now() - last.getTime() < LAUNCH_GAP_MS) return;
 
   const budget = AUTO_LAUNCH_DAILY_BUDGET;
-  // Long enough to reach the limit per sale, so the ad gets a fair test.
-  const days = Math.min(BUDGET_LIMITS.maxDays, Math.ceil(maxCostPerSale / budget) + 1);
+  const days = autoLaunchDays(maxCostPerSale);
 
   for (const adId of await listLaunchableAds(AUTO_LAUNCH_WITHOUT_REVIEW)) {
     try {

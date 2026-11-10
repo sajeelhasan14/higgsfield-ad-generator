@@ -114,16 +114,27 @@ export interface ScheduledAd {
   productTitle: string | null;
   firstSlide: string | null; // storage key of slide 1, for the thumbnail
   scheduledAt: Date;
+  createdAt: Date; // when the ad was made
+  approvedAt: Date | null;
   posts: { platform: string; status: string; lastError: string | null; publishedAt: string | null; permalink: string | null }[]; // inside JSON, dates arrive as strings
+  // Each time the ad was promoted as a paid Meta ad. startedAt is when it was first switched on (null while it was never on).
+  paidAds: { createdAt: string; startedAt: string | null; endsAt: string | null; dailyBudget: string; currency: string }[];
 }
 
 // One row per ad with all its platform posts folded in. {filter} is replaced only with the fixed clauses below.
+// A paid ad's ends_at is set once, when first switched on, to "that moment + days", so ends_at - days is when it went live.
 const SCHEDULE_SQL = `
   SELECT a.id AS "adId", p.title AS "productTitle",
          (SELECT image_url FROM ad_images WHERE ad_id = a.id AND position = 1) AS "firstSlide",
          min(s.scheduled_at) AS "scheduledAt",
+         a.created_at AS "createdAt", a.approved_at AS "approvedAt",
          json_agg(json_build_object('platform', s.platform, 'status', s.status, 'lastError', s.last_error,
-                                    'publishedAt', s.published_at, 'permalink', s.permalink) ORDER BY s.platform) AS posts
+                                    'publishedAt', s.published_at, 'permalink', s.permalink) ORDER BY s.platform) AS posts,
+         (SELECT COALESCE(json_agg(json_build_object('createdAt', pa.created_at,
+                                                     'startedAt', pa.ends_at - make_interval(days => pa.days),
+                                                     'endsAt', pa.ends_at, 'dailyBudget', pa.daily_budget,
+                                                     'currency', pa.currency) ORDER BY pa.created_at), '[]')
+          FROM paid_ads pa WHERE pa.ad_id = a.id) AS "paidAds"
   FROM posts s
   JOIN ads a ON a.id = s.ad_id
   LEFT JOIN products p ON p.id = a.product_id

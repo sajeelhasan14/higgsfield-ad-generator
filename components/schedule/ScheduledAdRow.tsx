@@ -5,6 +5,7 @@ import { formatSlotTime } from '@/lib/format';
 import type { ScheduledAd } from '@/lib/posts/repository';
 import { AdPreview } from '@/components/ads/AdPreview';
 import { PostStatusPills } from '@/components/posts/PostStatusPills';
+import { AdTimeline } from '@/components/schedule/AdTimeline';
 import { mediaUrl } from '@/lib/storage';
 
 export function ScheduledAdRow({ item, canUnschedule }: { item: ScheduledAd; canUnschedule: boolean }) {
@@ -23,6 +24,7 @@ export function ScheduledAdRow({ item, canUnschedule }: { item: ScheduledAd; can
         <div className="mt-2">
           <PostStatusPills posts={item.posts} />
         </div>
+        <AdTimeline item={item} />
         {item.posts
           .filter((p) => p.lastError)
           .map((p) => (
