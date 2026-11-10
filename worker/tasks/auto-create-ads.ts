@@ -1,6 +1,7 @@
 import { ANGLES } from '@/lib/ads/angles';
 import { LOOK_COUNT } from '@/lib/ads/prompts';
 import { pickProducts } from '@/lib/autopilot/choose';
+import { CREATE_GAP_MS } from '@/lib/autopilot/create-plan';
 import { chooseOption } from '@/lib/autopilot/learn';
 import { countAutoAdsWaiting, createAutoAd, lastAutoCreateAt, listApprovedIdeas, listCandidates, listOptionResults } from '@/lib/autopilot/repository';
 import { isPaused } from '@/lib/autopilot/state';
@@ -8,7 +9,6 @@ import { getSettings } from '@/lib/autopilot/settings';
 import { AI_ENABLED } from '@/lib/config';
 
 const LOOKS = Array.from({ length: LOOK_COUNT }, (_, look) => look);
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const CHECK_EVERY_MS = 60 * 60 * 1000;
 let nextCheck = 0;
 
@@ -24,7 +24,7 @@ export async function autoCreateAdsWeekly(): Promise<void> {
   if (weeklyAds === 0 || (await isPaused())) return;
 
   const last = await lastAutoCreateAt();
-  if (last && Date.now() - last.getTime() < WEEK_MS) return;
+  if (last && Date.now() - last.getTime() < CREATE_GAP_MS) return;
 
   // Ads still waiting for review use up this week's allowance.
   const room = weeklyAds - (await countAutoAdsWaiting());

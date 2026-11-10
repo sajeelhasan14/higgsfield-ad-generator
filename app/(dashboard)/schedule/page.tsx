@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { connection } from 'next/server';
 import { QueueRow } from '@/components/schedule/QueueRow';
 import { listAdsByStatus } from '@/lib/ads/repository';
+import { planNextBatch } from '@/lib/autopilot/create-plan';
 import { planPaidLaunches } from '@/lib/autopilot/launch-plan';
 import { listActivePaidAds } from '@/lib/paid-ads/repository';
 import { removeSlotAction } from '@/app/(dashboard)/schedule/actions';
@@ -34,8 +35,8 @@ export default function SchedulePage() {
 
 async function Schedule() {
   await connection(); // always fresh from the database
-  const [upcoming, history, slots, launchPlan, activePaid, waiting] = await Promise.all([
-    listUpcoming(), listHistory(), listSlots(), planPaidLaunches(), listActivePaidAds(), listAdsByStatus(['ready']),
+  const [upcoming, history, slots, launchPlan, activePaid, waiting, batch] = await Promise.all([
+    listUpcoming(), listHistory(), listSlots(), planPaidLaunches(), listActivePaidAds(), listAdsByStatus(['ready']), planNextBatch(),
   ]);
   const published = history.filter((h) => h.posts.every((p) => p.status === 'published')).length;
   // Real ads still inside their days. Dry-run ones (no Meta ID) never ran on Meta.
@@ -52,25 +53,53 @@ async function Schedule() {
     <>
       <StatRow
         stats={[
+          { label: 'Next new ads', value: batch.blocked ? '—' : formatSlotTime(batch.earliestAt), note: batch.blocked ? 'not making ads by itself' : `${batch.count} ad${batch.count === 1 ? '' : 's'} · up to an hour later` },
           { label: 'Next post', value: upcoming[0] ? formatSlotTime(new Date(upcoming[0].scheduledAt)) : '—', tone: 'blue', note: `${upcoming.length} waiting` },
           { label: 'Next paid ad', value: nextLaunch ? formatSlotTime(nextLaunch.earliestAt) : '—', tone: 'amber', note: launchPlan.blocked ? 'not launching by itself' : `${launchPlan.queue.length} waiting` },
-          { label: 'Paid ads running', value: running.length, tone: 'green' },
-          { label: 'Posted', value: published, note: `${slots.length} daily times` },
+          { label: 'Paid ads running', value: running.length, tone: 'green', note: `${published} ads posted so far` },
         ]}
       />
 
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
         <section>
-          <SectionTitle count={upcoming.length}>Next posts · Facebook &amp; Instagram</SectionTitle>
-          {upcoming.length === 0 ? (
-            <EmptyState>No post is booked. Approve an ad on the Review page and it takes the next free daily time.</EmptyState>
+          <SectionTitle count={batch.count}>Next new ads · made by the autopilot</SectionTitle>
+          {batch.blocked ? (
+            <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{batch.blocked}</p>
           ) : (
-            <ul className="flex flex-col gap-3">
-              {upcoming.map((item) => (
-                <ScheduledAdRow key={item.adId} item={item} canUnschedule />
-              ))}
-            </ul>
+            <div className="rounded-2xl border border-line bg-surface p-4">
+              <p className="font-display text-base font-bold">From {formatSlotTime(batch.earliestAt)}</p>
+              <p className="mt-1 text-sm text-muted">
+                {batch.count} new ad{batch.count === 1 ? '' : 's'}, once a week. The worker checks once an hour, so it can start up to an hour later.
+                Each ad that passes the check is booked into the next free daily time, then joins the paid ad queue.
+              </p>
+              {batch.likely.length > 0 && (
+                <>
+                  <p className="mt-3 text-xs font-semibold tracking-[0.14em] text-muted">IF IT RAN NOW, IT WOULD PICK</p>
+                  <ul className="mt-1 flex flex-col gap-1 text-sm">
+                    {batch.likely.map((pick) => (
+                      <li key={pick.title}>
+                        <span className="font-medium">{pick.title}</span> <span className="text-xs text-muted">· {pick.reason}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-xs text-muted">Sales by then can change the choice.</p>
+                </>
+              )}
+            </div>
           )}
+
+          <div className="mt-10">
+            <SectionTitle count={upcoming.length}>Next posts · Facebook &amp; Instagram</SectionTitle>
+            {upcoming.length === 0 ? (
+              <EmptyState>No post is booked. Approve an ad on the Review page and it takes the next free daily time.</EmptyState>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {upcoming.map((item) => (
+                  <ScheduledAdRow key={item.adId} item={item} canUnschedule />
+                ))}
+              </ul>
+            )}
+          </div>
 
           <div className="mt-10">
             <SectionTitle count={launchPlan.queue.length}>Next paid ads · Meta</SectionTitle>
