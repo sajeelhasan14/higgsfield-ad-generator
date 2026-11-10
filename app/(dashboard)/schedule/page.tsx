@@ -12,7 +12,8 @@ import { ScheduledAdRow } from '@/components/schedule/ScheduledAdRow';
 import { EmptyState, PageHeader, SectionTitle, StatRow } from '@/components/shell/PageParts';
 import { POSTING_TIMEZONE, PUBLISH_DRY_RUN } from '@/lib/config';
 import { formatPrice, formatSlotTime } from '@/lib/format';
-import { listHistory, listUpcoming } from '@/lib/posts/repository';
+import { AdTimeline } from '@/components/schedule/AdTimeline';
+import { listHistory, listTimelines, listUpcoming } from '@/lib/posts/repository';
 import { listSlots } from '@/lib/posts/slots';
 
 export default function SchedulePage() {
@@ -40,6 +41,12 @@ async function Schedule() {
   // Real ads still inside their days. Dry-run ones (no Meta ID) never ran on Meta.
   const running = activePaid.filter((paid) => !paid.finished && paid.metaAdId);
   const nextLaunch = launchPlan.blocked ? null : launchPlan.queue[0];
+  // Schedule rows already carry their timeline; the other lists need theirs read in one query.
+  const timelines = await listTimelines([...launchPlan.queue.map((l) => l.ad.id), ...running.map((p) => p.adId), ...waiting.map((a) => a.id)]);
+  const timelineOf = (adId: string) => {
+    const timeline = timelines.get(adId);
+    return timeline && <AdTimeline item={timeline} />;
+  };
 
   return (
     <>
@@ -83,7 +90,9 @@ async function Schedule() {
                       title={`${launch.ad.productTitle ?? 'Product no longer in the catalog'} · Ad #${launch.ad.id}`}
                       when={launchPlan.blocked ? 'Waiting' : `From ${formatSlotTime(launch.earliestAt)}`}
                       detail={`${formatPrice(String(launch.dailyBudget), 'GBP')}/day for ${launch.days} days`}
-                    />
+                    >
+                      {timelineOf(launch.ad.id)}
+                    </QueueRow>
                   ))}
                 </ul>
               </>
@@ -101,7 +110,9 @@ async function Schedule() {
                     title={`${paid.productTitle ?? 'Product no longer in the catalog'} · Ad #${paid.adId}`}
                     when={paid.endsAt ? `Running until ${formatSlotTime(new Date(paid.endsAt))}` : 'Made, not switched on yet'}
                     detail={`${formatPrice(paid.dailyBudget, paid.currency)}/day · ${paid.status === 'active' ? 'on' : 'paused'} · see Meta Ads for results`}
-                  />
+                  >
+                    {timelineOf(paid.adId)}
+                  </QueueRow>
                 ))}
               </ul>
             </div>
@@ -118,8 +129,9 @@ async function Schedule() {
                     image={ad.images[0] ?? null}
                     title={`${ad.productTitle ?? 'Product no longer in the catalog'} · Ad #${ad.id}`}
                     when="Not booked"
-                    detail={`Made ${formatSlotTime(new Date(ad.createdAt))}`}
+                    detail="Approve it to book a post and join the paid ad queue"
                   >
+                    {timelineOf(ad.id)}
                     <Link href="/review" className="mt-1 inline-block text-xs font-medium text-brand hover:underline">Open Review →</Link>
                   </QueueRow>
                 ))}

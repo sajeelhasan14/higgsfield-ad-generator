@@ -1,9 +1,9 @@
-// The life of one ad in one line: made → approved → posted on each platform → promoted as a paid ad.
-// Shown under each ad on the Schedule page. Steps that haven't happened yet are simply left out.
+// The life of one ad in one line: made → approved → posted on each platform → uploaded to Meta as a paid ad → switched on.
+// Shown under every ad on the Schedule page. Steps that haven't happened yet are simply left out.
 import { formatPrice, formatSlotTime } from '@/lib/format';
-import type { ScheduledAd } from '@/lib/posts/repository';
+import type { AdTimelineData } from '@/lib/posts/repository';
 
-export function AdTimeline({ item }: { item: ScheduledAd }) {
+export function AdTimeline({ item }: { item: AdTimelineData }) {
   const steps: { label: string; at: Date | string; note?: string }[] = [{ label: 'Made', at: item.createdAt }];
   if (item.approvedAt) steps.push({ label: 'Approved', at: item.approvedAt });
   for (const post of item.posts) {
@@ -11,10 +11,9 @@ export function AdTimeline({ item }: { item: ScheduledAd }) {
   }
   for (const paid of item.paidAds) {
     const budget = `${formatPrice(paid.dailyBudget, paid.currency)}/day`;
-    // A promotion that was never switched on only exists as a paused ad in Meta.
-    steps.push(paid.startedAt
-      ? { label: 'Paid ad live', at: paid.startedAt, note: `${budget}, until ${formatSlotTime(new Date(paid.endsAt!))}` }
-      : { label: 'Paid ad made (paused)', at: paid.createdAt, note: budget });
+    // Uploaded: the paid ad was made on Meta, paused. Switched on: it started spending (never, if startedAt is null).
+    steps.push({ label: 'Uploaded to Meta as paid ad', at: paid.createdAt, note: budget });
+    if (paid.startedAt) steps.push({ label: 'Paid ad switched on', at: paid.startedAt, note: `until ${formatSlotTime(new Date(paid.endsAt!))}` });
   }
   // Oldest first, so it reads as a story.
   steps.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());

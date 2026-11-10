@@ -121,8 +121,37 @@ export interface ScheduledAd {
   paidAds: { createdAt: string; startedAt: string | null; endsAt: string | null; dailyBudget: string; currency: string }[];
 }
 
+/** What AdTimeline needs to tell one ad's story. ScheduledAd has all of it, so a schedule row can be passed as is. */
+export type AdTimelineData = Pick<ScheduledAd, 'createdAt' | 'approvedAt' | 'posts' | 'paidAds'>;
+
+// Every paid ad of ad "a", as JSON. A paid ad's ends_at is set once, when first switched on, to "that moment + days",
+// so ends_at - days is when it went live.
+const PAID_ADS_JSON = `
+  (SELECT COALESCE(json_agg(json_build_object('createdAt', pa.created_at,
+                                              'startedAt', pa.ends_at - make_interval(days => pa.days),
+                                              'endsAt', pa.ends_at, 'dailyBudget', pa.daily_budget,
+                                              'currency', pa.currency) ORDER BY pa.created_at), '[]')
+   FROM paid_ads pa WHERE pa.ad_id = a.id)`;
+
+/**
+ * The timeline facts for ads that are not schedule rows (paid ads waiting or running, ads waiting for approval),
+ * keyed by ad ID. Posts are the same ones listPostsForAds counts: not cancelled, newest per platform.
+ */
+export async function listTimelines(adIds: string[]): Promise<Map<string, AdTimelineData>> {
+  if (adIds.length === 0) return new Map();
+  const rows = await query<AdTimelineData & { adId: string }>(
+    `SELECT a.id AS "adId", a.created_at AS "createdAt", a.approved_at AS "approvedAt",
+            (SELECT COALESCE(json_agg(json_build_object('platform', s.platform, 'status', s.status, 'lastError', s.last_error,
+                                                        'publishedAt', s.published_at, 'permalink', s.permalink) ORDER BY s.platform), '[]')
+             FROM (SELECT DISTINCT ON (platform) * FROM posts WHERE ad_id = a.id AND status <> 'cancelled' ORDER BY platform, id DESC) s) AS posts,
+            ${PAID_ADS_JSON} AS "paidAds"
+     FROM ads a WHERE a.id = ANY($1::bigint[])`,
+    [adIds],
+  );
+  return new Map(rows.map(({ adId, ...timeline }) => [adId, timeline]));
+}
+
 // One row per ad with all its platform posts folded in. {filter} is replaced only with the fixed clauses below.
-// A paid ad's ends_at is set once, when first switched on, to "that moment + days", so ends_at - days is when it went live.
 const SCHEDULE_SQL = `
   SELECT a.id AS "adId", p.title AS "productTitle",
          (SELECT image_url FROM ad_images WHERE ad_id = a.id AND position = 1) AS "firstSlide",
@@ -130,11 +159,7 @@ const SCHEDULE_SQL = `
          a.created_at AS "createdAt", a.approved_at AS "approvedAt",
          json_agg(json_build_object('platform', s.platform, 'status', s.status, 'lastError', s.last_error,
                                     'publishedAt', s.published_at, 'permalink', s.permalink) ORDER BY s.platform) AS posts,
-         (SELECT COALESCE(json_agg(json_build_object('createdAt', pa.created_at,
-                                                     'startedAt', pa.ends_at - make_interval(days => pa.days),
-                                                     'endsAt', pa.ends_at, 'dailyBudget', pa.daily_budget,
-                                                     'currency', pa.currency) ORDER BY pa.created_at), '[]')
-          FROM paid_ads pa WHERE pa.ad_id = a.id) AS "paidAds"
+         ${PAID_ADS_JSON} AS "paidAds"
   FROM posts s
   JOIN ads a ON a.id = s.ad_id
   LEFT JOIN products p ON p.id = a.product_id
